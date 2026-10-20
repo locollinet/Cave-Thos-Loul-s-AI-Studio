@@ -103,7 +103,31 @@ export function WineDrawer({ wine, onClose }: { wine: Wine; onClose: () => void 
               <Row k={t('carte.tech.sol')} v={ts?.sol} />
               <Row k={t('carte.tech.ageVignes')} v={ts?.ageVignes} />
             </section>
-            {ts?.generatedByAI && <p className="rounded-xl bg-warn/10 p-3 text-xs text-warn">{t('ai.disclaimer')}</p>}
+            {ts?.generatedByAI && (
+              <div className="rounded-xl border border-border/80 bg-surface-2/60 p-3 text-xs space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge tone={ts.confidence === 'high' ? 'ok' : ts.confidence === 'medium' ? 'brand' : 'warn'}>
+                    {ts.confidence === 'high'
+                      ? 'Fiabilité Haute · Données AOP vérifiées'
+                      : ts.confidence === 'medium'
+                        ? 'Fiabilité Moyenne · Repères d’appellation'
+                        : 'Données partielles · Repères généraux'}
+                  </Badge>
+                  <span className="text-muted">Modèle sobre & rapide · Garde-fous actifs</span>
+                </div>
+                {ts.sources && (
+                  <p className="text-muted">
+                    <span className="font-medium text-ink">Sources : </span>{ts.sources}
+                  </p>
+                )}
+                {ts.missingInfo && ts.missingInfo !== 'Aucune information manquante majeure' && (
+                  <p className="text-warn">
+                    <span className="font-medium">Éléments non inventés (non documentés) : </span>{ts.missingInfo}
+                  </p>
+                )}
+                <p className="text-[11px] text-muted">{t('ai.disclaimer')}</p>
+              </div>
+            )}
             {(ts?.oeil || ts?.nez || ts?.bouche) && <section className="rounded-2xl border border-border bg-surface-2/40 p-5">
               <h3 className="mb-4 flex items-center gap-2 font-display text-xl"><Grape className="size-4 text-brand" />{t('discover.tasting')}</h3>
               {[['oeil', ts.oeil], ['nez', ts.nez], ['bouche', ts.bouche]].map(([key, text]) => text && <div key={key} className="mt-4"><h4 className="text-[10px] uppercase tracking-[0.18em] text-muted">{t(`carte.tech.${key}`)}</h4><p className="mt-1 text-sm leading-relaxed">{text}</p></div>)}

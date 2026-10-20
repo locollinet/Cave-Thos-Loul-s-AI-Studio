@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Archive, BookOpen, Download, FileUp, ListChecks, Map as MapIcon, Percent, Plus, Send, Wine as WineIcon, X } from 'lucide-react';
+import { Archive, BookOpen, Download, FileUp, ListChecks, Map as MapIcon, Percent, Plus, Send, Sparkles, Wine as WineIcon, X } from 'lucide-react';
 import type { Wine, WineColor } from '@/types';
 import { useCollection, useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
@@ -18,6 +18,7 @@ import { WineFormModal } from './wines/WineForm';
 import { WineDrawer } from './wines/WineDrawer';
 import { ImportWinesModal } from './wines/ImportWines';
 import { DuplicatesPanel, findDuplicateGroups } from './wines/Duplicates';
+import { BatchTechSheetModal } from './wines/BatchTechSheetModal';
 
 export const COLOR_DOT: Record<WineColor, string> = {
   rouge: 'bg-[#7a1f2b]',
@@ -58,7 +59,7 @@ export default function WinesPage() {
   const [showMap, setShowMap] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selecting, setSelecting] = useState(false);
-  const [bulk, setBulk] = useState<'carte' | 'price' | null>(null);
+  const [bulk, setBulk] = useState<'carte' | 'price' | 'techSheet' | null>(null);
 
   useEffect(() => {
     if (params.get('new') === '1') setCreating(true);
@@ -198,6 +199,15 @@ export default function WinesPage() {
         actions={
           can('manager') && (
             <>
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={<Sparkles className="size-4 text-accent" />}
+                onClick={() => setBulk('techSheet')}
+                title="Enrichir les fiches techniques par lot avec l'IA"
+              >
+                <span className="hidden sm:inline">Fiches IA par lot</span>
+              </Button>
               <Button size="sm" icon={<FileUp className="size-4" />} onClick={() => setImporting(true)}>
                 <span className="hidden sm:inline">{t('common.import')}</span>
               </Button>
@@ -272,6 +282,7 @@ export default function WinesPage() {
             {canCarte && <Button size="sm" variant="ghost" icon={<BookOpen className="size-4" />} onClick={() => setBulk('carte')}>{t('ux.bulk.carte')}</Button>}
             {canOffer && <Button size="sm" variant="ghost" icon={<Send className="size-4" />} onClick={() => navigate(`/negoce/offres/new?wines=${chosen.map((w) => w.id).join(',')}`)}>{t('ux.bulk.offer')}</Button>}
             {can('manager') && <Button size="sm" variant="ghost" icon={<Percent className="size-4" />} onClick={() => setBulk('price')}>{t('ux.bulk.price')}</Button>}
+            {can('manager') && <Button size="sm" variant="ghost" icon={<Sparkles className="size-4 text-accent" />} onClick={() => setBulk('techSheet')}>{t('ux.bulk.techSheet')}</Button>}
             <Button size="sm" variant="ghost" icon={<Download className="size-4" />} onClick={exportSelection}>{t('ux.bulk.export')}</Button>
             {can('manager') && <Button size="sm" variant="ghost" icon={<Archive className="size-4" />} onClick={archive}>{t('ux.bulk.archive')}</Button>}
             <Button size="sm" variant="ghost" aria-label={t('ux.bulk.clear')} icon={<X className="size-4" />} onClick={clear} />
@@ -281,6 +292,7 @@ export default function WinesPage() {
 
       {bulk === 'carte' && <AddToListModal wines={chosen} onClose={() => setBulk(null)} onDone={clear} />}
       {bulk === 'price' && <PriceModal wines={chosen} onClose={() => setBulk(null)} onDone={clear} />}
+      {bulk === 'techSheet' && <BatchTechSheetModal wines={chosen.length > 0 ? chosen : pool} onClose={() => setBulk(null)} onDone={clear} />}
       {creating && <WineFormModal onClose={() => { setCreating(false); if (params.has('new')) setParams({}, { replace: true }); }} onSaved={(w) => setOpenId(w.id)} />}
       {importing && <ImportWinesModal onClose={() => setImporting(false)} />}
       {opened && <WineDrawer wine={opened} onClose={() => open(null)} />}

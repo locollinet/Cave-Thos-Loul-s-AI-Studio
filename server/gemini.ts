@@ -12,7 +12,7 @@ export class AiError extends Error {
 const TIMEOUT_MS = 55_000;
 
 export const modelList = (): string[] =>
-  [process.env.GEMINI_MODEL, 'gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest'].filter((m): m is string => !!m && m.trim() !== '');
+  [process.env.GEMINI_MODEL, 'gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest'].filter((m): m is string => !!m && m.trim() !== '');
 
 const errStatus = (e: unknown): number => {
   const s = (e as { status?: unknown; code?: unknown })?.status ?? (e as { code?: unknown })?.code;

@@ -37,9 +37,64 @@ export async function generateTechSheet(wine: Wine, language: Locale): Promise<T
     formatCl: wine.formatCl,
     language,
   });
-  const sheet: TechnicalSheet = { generatedByAI: true };
-  for (const [k, v] of Object.entries(r)) if (typeof v === 'string' && v.trim()) (sheet as Record<string, unknown>)[k] = v.trim();
+  const sheet: TechnicalSheet = {
+    generatedByAI: true,
+    sources: r.sources,
+    confidence: (r.confidence as TechnicalSheet['confidence']) || 'medium',
+    missingInfo: r.missingInfo,
+  };
+  for (const [k, v] of Object.entries(r)) {
+    if (k !== 'sources' && k !== 'confidence' && k !== 'missingInfo' && typeof v === 'string' && v.trim()) {
+      (sheet as Record<string, unknown>)[k] = v.trim();
+    }
+  }
   return sheet;
+}
+
+export interface BatchItemProgress {
+  wine: Wine;
+  status: 'pending' | 'processing' | 'done' | 'error';
+  sheet?: TechnicalSheet;
+  error?: string;
+}
+
+/** Génération par lot avec concurrence contrôlée (2 simultanés max) et rappel d'avancement */
+export async function generateBatchTechSheets(
+  wines: Wine[],
+  language: Locale,
+  onProgress?: (progress: Map<string, BatchItemProgress>) => void,
+  concurrency = 2,
+): Promise<Map<string, TechnicalSheet>> {
+  const state = new Map<string, BatchItemProgress>();
+  for (const w of wines) {
+    state.set(w.id, { wine: w, status: 'pending' });
+  }
+  onProgress?.(new Map(state));
+
+  const results = new Map<string, TechnicalSheet>();
+  let cursor = 0;
+
+  const runWorker = async () => {
+    while (cursor < wines.length) {
+      const idx = cursor++;
+      const wine = wines[idx];
+      state.set(wine.id, { wine, status: 'processing' });
+      onProgress?.(new Map(state));
+
+      try {
+        const sheet = await generateTechSheet(wine, language);
+        results.set(wine.id, sheet);
+        state.set(wine.id, { wine, status: 'done', sheet });
+      } catch (e) {
+        state.set(wine.id, { wine, status: 'error', error: e instanceof Error ? e.message : 'Erreur' });
+      }
+      onProgress?.(new Map(state));
+    }
+  };
+
+  const workers = Array.from({ length: Math.min(concurrency, wines.length) }, () => runWorker());
+  await Promise.all(workers);
+  return results;
 }
 
 const TRANSLATE_BATCH = 200;

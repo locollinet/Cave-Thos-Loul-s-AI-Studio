@@ -46,8 +46,13 @@ export type TechField = (typeof TECH_FIELDS)[number];
 
 export const techSheetSchema: Schema = {
   type: Type.OBJECT,
-  properties: Object.fromEntries(TECH_FIELDS.map((k) => [k, S])),
-  required: [...TECH_FIELDS],
+  properties: {
+    ...Object.fromEntries(TECH_FIELDS.map((k) => [k, S])),
+    sources: S,
+    confidence: { type: Type.STRING, enum: ['high', 'medium', 'estimated', 'partial'] },
+    missingInfo: S,
+  },
+  required: [...TECH_FIELDS, 'sources', 'confidence', 'missingInfo'],
 };
 
 export const invoiceSchema: Schema = {

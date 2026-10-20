@@ -125,6 +125,9 @@ export interface TechnicalSheet {
   garde?: string;
   accords?: string;
   generatedByAI?: boolean;
+  sources?: string;
+  confidence?: 'high' | 'medium' | 'estimated' | 'partial';
+  missingInfo?: string;
 }
 
 export interface Producer {

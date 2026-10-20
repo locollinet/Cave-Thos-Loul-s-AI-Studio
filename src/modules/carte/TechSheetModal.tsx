@@ -80,10 +80,33 @@ export function TechSheetModal({ wine, onClose }: { wine: Wine; onClose: () => v
           </Button>
         </div>
         {sheet.generatedByAI && (
-          <p className="flex items-center gap-2 rounded-lg bg-warn/10 px-3 py-2 text-xs text-warn">
-            <Badge tone="warn">{t('ai.badge')}</Badge>
-            {t('ai.disclaimer')}
-          </p>
+          <div className="space-y-1.5 rounded-xl border border-border/70 bg-surface-2/60 p-3 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone={sheet.confidence === 'high' ? 'ok' : sheet.confidence === 'medium' ? 'brand' : 'warn'}>
+                {sheet.confidence === 'high'
+                  ? 'Fiabilité Haute · Données AOP vérifiées'
+                  : sheet.confidence === 'medium'
+                    ? 'Fiabilité Moyenne · Repères d’appellation'
+                    : 'Données partielles · Repères généraux'}
+              </Badge>
+              <span className="text-muted">Modèle léger & rapide · Garde-fous actifs</span>
+            </div>
+            {sheet.sources && (
+              <p className="text-ink/80">
+                <span className="font-medium text-muted">Sources : </span>
+                {sheet.sources}
+              </p>
+            )}
+            {sheet.missingInfo && sheet.missingInfo !== 'Aucune information manquante majeure' && (
+              <p className="text-warn">
+                <span className="font-medium">Éléments non inventés (non documentés) : </span>
+                {sheet.missingInfo}
+              </p>
+            )}
+            <p className="text-[11px] text-muted">
+              {t('ai.disclaimer')} Les informations incertaines ont été laissées vierges ou indiquées « Non documenté » pour éviter toute invention.
+            </p>
+          </div>
         )}
         <div className="grid gap-3 sm:grid-cols-2">
           {FIELDS.map(({ key, long }) => (
