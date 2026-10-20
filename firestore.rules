@@ -1,0 +1,172 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------------ helpers
+    function signedIn() {
+      return request.auth != null;
+    }
+    function validId(id) {
+      return id.matches('^[a-zA-Z0-9_\\-@.]+$') && id.size() <= 160;
+    }
+    function memberPath(orgId) {
+      return /databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid);
+    }
+    function isMember(orgId) {
+      return signedIn() && exists(memberPath(orgId));
+    }
+    function role(orgId) {
+      return get(memberPath(orgId)).data.role;
+    }
+    function hasRole(orgId, roles) {
+      return isMember(orgId) && role(orgId) in roles;
+    }
+    function orgDoc(orgId) {
+      return get(/databases/$(database)/documents/orgs/$(orgId));
+    }
+    function userEmail() {
+      return request.auth.token.email.lower();
+    }
+    function isAdmin(orgId) {
+      return hasRole(orgId, ['owner', 'manager']);
+    }
+    function isPlatformAdmin() {
+      return signedIn() && request.auth.token.platformAdmin == true;
+    }
+
+    // ------------------------------------------------------------------ utilisateurs
+    match /users/{userId} {
+      allow get: if signedIn() && (request.auth.uid == userId || isPlatformAdmin());
+      allow create, update: if signedIn() && request.auth.uid == userId
+        && request.resource.data.orgIds is list && request.resource.data.orgIds.size() <= 30;
+      allow delete: if false;
+    }
+
+    // ------------------------------------------------------------------ cartes publiées (lecture publique, aucune donnée sensible)
+    match /public_lists/{publicId} {
+      allow get: if validId(publicId);
+      allow list: if false;
+      allow create, update: if validId(publicId)
+        && request.resource.data.publicId == publicId
+        && hasRole(request.resource.data.orgId, ['owner', 'manager', 'sommelier'])
+        && request.resource.data.keys().hasOnly(['publicId', 'orgId', 'orgName', 'name', 'template', 'theme', 'language', 'updatedAt', 'sections', 'logoDataUrl', 'languages', 'translations'])
+        && (!('theme' in request.resource.data) || (request.resource.data.theme is map && request.resource.data.theme.size() <= 20))
+        && (!('logoDataUrl' in request.resource.data) || (request.resource.data.logoDataUrl is string && request.resource.data.logoDataUrl.size() <= 400000))
+        && request.resource.data.sections.size() <= 100;
+      allow delete: if hasRole(resource.data.orgId, ['owner', 'manager', 'sommelier']);
+    }
+
+    // Offres commerciales partagées par lien (instantané sans prix d'achat ni stock).
+    match /public_offers/{publicId} {
+      allow get: if validId(publicId);
+      allow list: if false;
+      allow create, update: if validId(publicId)
+        && request.resource.data.publicId == publicId
+        && hasRole(request.resource.data.orgId, ['owner', 'manager', 'accountant'])
+        && request.resource.data.items.size() <= 200;
+      allow delete: if hasRole(resource.data.orgId, ['owner', 'manager', 'accountant']);
+    }
+
+    // ------------------------------------------------------------------ organisations
+    match /orgs/{orgId} {
+      allow get: if isMember(orgId) || isPlatformAdmin();
+      allow list: if isPlatformAdmin();
+      allow create: if signedIn() && validId(orgId)
+        && (request.resource.data.ownerUid == request.auth.uid || isPlatformAdmin())
+        && request.resource.data.id == orgId
+        && request.resource.data.name is string && request.resource.data.name.size() <= 200;
+      allow update: if (isAdmin(orgId) || isPlatformAdmin())
+        && request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.id == orgId;
+      allow delete: if isPlatformAdmin();
+
+      // Membres : le créateur s'inscrit propriétaire ; un invité rejoint avec le rôle de l'invitation.
+      match /members/{uid} {
+        allow read: if isMember(orgId) || isPlatformAdmin();
+        allow create: if signedIn() && uid == request.auth.uid && request.resource.data.uid == uid
+          && (
+            (orgDoc(orgId).data.ownerUid == uid && request.resource.data.role == 'owner')
+            || (exists(/databases/$(database)/documents/orgs/$(orgId)/invites/$(userEmail()))
+                && get(/databases/$(database)/documents/orgs/$(orgId)/invites/$(userEmail())).data.role == request.resource.data.role
+                && (!('expiresAt' in get(/databases/$(database)/documents/orgs/$(orgId)/invites/$(userEmail())).data)
+                    || request.time.toMillis() <= get(/databases/$(database)/documents/orgs/$(orgId)/invites/$(userEmail())).data.expiresAt))
+          );
+        allow update: if hasRole(orgId, ['owner']) && request.resource.data.uid == uid;
+        allow delete: if hasRole(orgId, ['owner']) || (signedIn() && uid == request.auth.uid);
+      }
+
+      match /invites/{email} {
+        allow get: if hasRole(orgId, ['owner']) || (signedIn() && email == userEmail());
+        allow list: if hasRole(orgId, ['owner']);
+        allow create, update: if hasRole(orgId, ['owner']) && validId(email) && request.resource.data.role in ['manager', 'sommelier', 'accountant', 'staff'];
+        allow delete: if hasRole(orgId, ['owner']);
+      }
+
+      // ---------------------------------------------------------------- lot 1 : cave & stock
+      match /sites/{id} {
+        allow read: if isMember(orgId);
+        allow write: if isAdmin(orgId) && validId(id);
+      }
+      match /producers/{id} {
+        allow read: if isMember(orgId);
+        allow write: if hasRole(orgId, ['owner', 'manager', 'sommelier', 'accountant']) && validId(id);
+      }
+      match /wines/{id} {
+        allow read: if isMember(orgId);
+        allow create, update: if hasRole(orgId, ['owner', 'manager', 'sommelier', 'accountant']) && validId(id)
+          && request.resource.data.name is string && request.resource.data.name.size() <= 300
+          && request.resource.data.producer is string && request.resource.data.producer.size() <= 300;
+        allow delete: if isAdmin(orgId);
+      }
+      match /stock/{id} {
+        allow read: if isMember(orgId);
+        allow create, update: if isMember(orgId) && validId(id)
+          && request.resource.data.qty is number && request.resource.data.qty >= 0;
+        allow delete: if isAdmin(orgId);
+      }
+      // Les mouvements sont immuables : création seule, signée par l'utilisateur.
+      match /movements/{id} {
+        allow read: if isMember(orgId);
+        allow create: if isMember(orgId) && validId(id) && request.resource.data.userId == request.auth.uid;
+        allow update, delete: if false;
+      }
+      match /inventories/{id} {
+        allow read: if isMember(orgId);
+        allow write: if isMember(orgId) && validId(id);
+      }
+      match /partners/{id} {
+        allow read: if isMember(orgId);
+        allow create, update: if isMember(orgId) && validId(id)
+          && request.resource.data.name is string && request.resource.data.name.size() <= 300;
+        allow delete: if isAdmin(orgId);
+      }
+      // Photos des vins, stockées à part pour ne pas alourdir le catalogue (à migrer vers Cloud Storage en production).
+      match /wineImages/{id} {
+        allow read: if isMember(orgId);
+        allow write: if hasRole(orgId, ['owner', 'manager', 'sommelier']) && validId(id)
+          && (request.resource == null || (request.resource.data.dataUrl is string && request.resource.data.dataUrl.size() <= 350000));
+      }
+      // Vins au verre : bouteilles ouvertes et verres servis (toute l'équipe en service).
+      match /openBottles/{id} {
+        allow read, write: if isMember(orgId) && validId(id);
+      }
+
+      // ---------------------------------------------------------------- lot 2 : carte & achats
+      match /wineLists/{id} {
+        allow read: if isMember(orgId);
+        allow write: if hasRole(orgId, ['owner', 'manager', 'sommelier']) && validId(id);
+      }
+      match /purchaseInvoices/{id} {
+        allow read: if hasRole(orgId, ['owner', 'manager', 'sommelier', 'accountant']);
+        allow write: if hasRole(orgId, ['owner', 'manager', 'sommelier', 'accountant']) && validId(id);
+      }
+
+      // ---------------------------------------------------------------- lot 3 : négoce, compta, pilotage (données financières)
+      match /{coll}/{id} {
+        allow read, write: if coll in ['documents', 'payments', 'consignments', 'counters', 'expenses', 'expenseCategories', 'assets', 'drmReports', 'accountingSettings', 'offers']
+          && hasRole(orgId, ['owner', 'manager', 'accountant']) && validId(id);
+      }
+    }
+  }
+}

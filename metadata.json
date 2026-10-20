@@ -1,0 +1,6 @@
+{
+  "name": "Loul's & Thos",
+  "description": "Plateforme de gestion de cave et de négoce de vin : stock multi-sites, carte des vins intelligente, achats par IA, facturation, douane et comptabilité.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

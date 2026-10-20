@@ -1,0 +1,123 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  --bg: #f7f4ef;
+  --surface: #ffffff;
+  --surface-2: #f1ede6;
+  --border: #e4ddd1;
+  --text: #1c1517;
+  --muted: #6f655f;
+  --brand: #6b1f2e;
+  --brand-fg: #ffffff;
+  --brand-soft: #f3e4e7;
+  --accent: #b8924a;
+  --ok: #2f7d4f;
+  --warn: #b7791f;
+  --bad: #b42318;
+  --info: #2b6cb0;
+  --app-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --app-display: 'Cormorant Garamond', 'Fraunces', ui-serif, Georgia, serif;
+}
+
+.dark {
+  --bg: #130e10;
+  --surface: #1c1517;
+  --surface-2: #261d20;
+  --border: #38292d;
+  --text: #f4ede6;
+  --muted: #a39690;
+  --brand: #d9758a;
+  --brand-fg: #1c1517;
+  --brand-soft: #3a1f27;
+  --accent: #d4ad67;
+  --ok: #55c283;
+  --warn: #e0a84b;
+  --bad: #f07a6f;
+  --info: #6aa7e6;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-border: var(--border);
+  --color-ink: var(--text);
+  --color-muted: var(--muted);
+  --color-brand: var(--brand);
+  --color-brand-fg: var(--brand-fg);
+  --color-brand-soft: var(--brand-soft);
+  --color-accent: var(--accent);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-info: var(--info);
+  --font-sans: var(--app-sans);
+  --font-display: var(--app-display);
+  --radius-md: 0.3rem;
+  --radius-lg: 0.4rem;
+  --radius-xl: 0.55rem;
+  --radius-2xl: 0.8rem;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--app-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Titrage : un sérif à empattements fins se lit mieux en graisse moyenne et légèrement plus grand. */
+.font-display {
+  font-weight: 500;
+  font-feature-settings: 'lnum' 1;
+}
+
+.tabular {
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+::selection {
+  background: var(--brand);
+  color: var(--brand-fg);
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-in {
+  animation: fade-in 0.18s ease-out;
+}
+
+/* Impression : cartes, factures, états */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+}
+.print-only {
+  display: none;
+}

@@ -1,0 +1,44 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function memberPath(orgId) {
+      return /databases/(default)/documents/orgs/$(orgId)/members/$(request.auth.uid);
+    }
+
+    function isMember(orgId) {
+      return signedIn() && firestore.exists(memberPath(orgId));
+    }
+
+    function hasRole(orgId, roles) {
+      return isMember(orgId) && firestore.get(memberPath(orgId)).data.role in roles;
+    }
+
+    function isPlatformAdmin() {
+      return signedIn() && request.auth.token.platformAdmin == true;
+    }
+
+    // Photos des bouteilles de vin au format webp ou images compressées
+    match /orgs/{orgId}/wines/{wineId} {
+      allow read: if isMember(orgId) || isPlatformAdmin();
+      allow write: if (hasRole(orgId, ['owner', 'manager', 'sommelier']) || isPlatformAdmin())
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if hasRole(orgId, ['owner', 'manager', 'sommelier']) || isPlatformAdmin();
+    }
+
+    // Logos et assets personnalisés des organisations
+    match /orgs/{orgId}/brand/{assetId} {
+      allow read: if isMember(orgId) || isPlatformAdmin();
+      allow write: if (hasRole(orgId, ['owner', 'manager']) || isPlatformAdmin())
+        && request.resource.size < 2 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+      allow delete: if hasRole(orgId, ['owner', 'manager']) || isPlatformAdmin();
+    }
+  }
+}
