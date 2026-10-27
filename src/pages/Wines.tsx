@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Archive, BookOpen, Download, FileUp, ListChecks, Map as MapIcon, Percent, Plus, Send, Sparkles, Wine as WineIcon, X } from 'lucide-react';
+import { Archive, BookOpen, Download, FileUp, Layers, ListChecks, Map as MapIcon, Percent, Plus, Send, Sparkles, Tag, Wine as WineIcon, X } from 'lucide-react';
 import type { Wine, WineColor } from '@/types';
 import { useCollection, useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
@@ -19,6 +19,7 @@ import { WineDrawer } from './wines/WineDrawer';
 import { ImportWinesModal } from './wines/ImportWines';
 import { DuplicatesPanel, findDuplicateGroups } from './wines/Duplicates';
 import { BatchTechSheetModal } from './wines/BatchTechSheetModal';
+import { ShelfTalkerModal } from './wines/ShelfTalkerModal';
 
 export const COLOR_DOT: Record<WineColor, string> = {
   rouge: 'bg-[#7a1f2b]',
@@ -60,6 +61,7 @@ export default function WinesPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [selecting, setSelecting] = useState(false);
   const [bulk, setBulk] = useState<'carte' | 'price' | 'techSheet' | null>(null);
+  const [shelfOpen, setShelfOpen] = useState(false);
 
   useEffect(() => {
     if (params.get('new') === '1') setCreating(true);
@@ -197,25 +199,39 @@ export default function WinesPage() {
         title={t('nav.wines')}
         subtitle={t('wines.subtitle', { n: wines.filter((w) => !w.isArchived).length })}
         actions={
-          can('manager') && (
-            <>
-              <Button
-                size="sm"
-                variant="ghost"
-                icon={<Sparkles className="size-4 text-accent" />}
-                onClick={() => setBulk('techSheet')}
-                title="Enrichir les fiches techniques par lot avec l'IA"
-              >
-                <span className="hidden sm:inline">Fiches IA par lot</span>
-              </Button>
-              <Button size="sm" icon={<FileUp className="size-4" />} onClick={() => setImporting(true)}>
-                <span className="hidden sm:inline">{t('common.import')}</span>
-              </Button>
-              <Button size="sm" variant="primary" icon={<Plus className="size-4" />} onClick={() => setCreating(true)}>
-                {t('wines.new')}
-              </Button>
-            </>
-          )
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" icon={<Layers className="size-4 text-brand" />} onClick={() => navigate('/stock?tab=cellar')}>
+              {t('stock.cellarPlan')}
+            </Button>
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={<Tag className="size-4 text-brand" />}
+              onClick={() => setShelfOpen(true)}
+              title="Générer des étiquettes de rayon & stop-rayons à imprimer"
+            >
+              <span className="hidden sm:inline">Stop-rayons</span>
+            </Button>
+            {can('manager') && (
+              <>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon={<Sparkles className="size-4 text-accent" />}
+                  onClick={() => setBulk('techSheet')}
+                  title="Enrichir les fiches techniques par lot avec l'IA"
+                >
+                  <span className="hidden sm:inline">Fiches IA par lot</span>
+                </Button>
+                <Button size="sm" icon={<FileUp className="size-4" />} onClick={() => setImporting(true)}>
+                  <span className="hidden sm:inline">{t('common.import')}</span>
+                </Button>
+                <Button size="sm" variant="primary" icon={<Plus className="size-4" />} onClick={() => setCreating(true)}>
+                  {t('wines.new')}
+                </Button>
+              </>
+            )}
+          </div>
         }
       />
       <Tabs
@@ -283,6 +299,7 @@ export default function WinesPage() {
             {canOffer && <Button size="sm" variant="ghost" icon={<Send className="size-4" />} onClick={() => navigate(`/negoce/offres/new?wines=${chosen.map((w) => w.id).join(',')}`)}>{t('ux.bulk.offer')}</Button>}
             {can('manager') && <Button size="sm" variant="ghost" icon={<Percent className="size-4" />} onClick={() => setBulk('price')}>{t('ux.bulk.price')}</Button>}
             {can('manager') && <Button size="sm" variant="ghost" icon={<Sparkles className="size-4 text-accent" />} onClick={() => setBulk('techSheet')}>{t('ux.bulk.techSheet')}</Button>}
+            <Button size="sm" variant="ghost" icon={<Tag className="size-4 text-brand" />} onClick={() => setShelfOpen(true)}>Stop-rayons</Button>
             <Button size="sm" variant="ghost" icon={<Download className="size-4" />} onClick={exportSelection}>{t('ux.bulk.export')}</Button>
             {can('manager') && <Button size="sm" variant="ghost" icon={<Archive className="size-4" />} onClick={archive}>{t('ux.bulk.archive')}</Button>}
             <Button size="sm" variant="ghost" aria-label={t('ux.bulk.clear')} icon={<X className="size-4" />} onClick={clear} />
@@ -293,6 +310,7 @@ export default function WinesPage() {
       {bulk === 'carte' && <AddToListModal wines={chosen} onClose={() => setBulk(null)} onDone={clear} />}
       {bulk === 'price' && <PriceModal wines={chosen} onClose={() => setBulk(null)} onDone={clear} />}
       {bulk === 'techSheet' && <BatchTechSheetModal wines={chosen.length > 0 ? chosen : pool} onClose={() => setBulk(null)} onDone={clear} />}
+      {shelfOpen && <ShelfTalkerModal open={shelfOpen} onClose={() => setShelfOpen(false)} wines={chosen.length > 0 ? chosen : list} />}
       {creating && <WineFormModal onClose={() => { setCreating(false); if (params.has('new')) setParams({}, { replace: true }); }} onSaved={(w) => setOpenId(w.id)} />}
       {importing && <ImportWinesModal onClose={() => setImporting(false)} />}
       {opened && <WineDrawer wine={opened} onClose={() => open(null)} />}

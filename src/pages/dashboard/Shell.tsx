@@ -5,6 +5,7 @@ import { useI18n } from '@/i18n';
 import type { Insight } from './compute';
 import { Hero, Invite, Panel } from './parts';
 import { Onboarding } from './Onboarding';
+import { DemoDiscoveryBanner } from './DemoDiscoveryBanner';
 
 /** Structure commune : accroche, prise en main, puis contenu (ou invitation si la cave est vide). */
 export function Shell({ insight, actions, empty, children }: { insight: Insight; actions?: ReactNode; empty: boolean; children: ReactNode }) {
@@ -12,6 +13,7 @@ export function Shell({ insight, actions, empty, children }: { insight: Insight;
   return (
     <div className="space-y-6">
       <Hero insight={insight} actions={actions} />
+      <DemoDiscoveryBanner />
       {can('manager') && <Onboarding />}
       {empty ? <EmptyCellar /> : children}
     </div>

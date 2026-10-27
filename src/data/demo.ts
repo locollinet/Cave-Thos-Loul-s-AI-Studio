@@ -12,6 +12,7 @@ import { buildHospitalityDemand, type SecondarySite, type Target } from './demo/
 import { buildPurchases } from './demo/purchases';
 import { buildCompta, inventoryOp, planInventory } from './demo/backoffice';
 import { buildCarte } from './demo/carte';
+import { formatBinSummary, generateRackSlots } from '@/lib/cellar';
 
 /** Contexte exposé aux compléments de démo (offres, bouteilles ouvertes…), une fois le stock final connu. */
 export interface DemoContext {
@@ -69,7 +70,46 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
 
   /* ---------------------------------------------------------- sites */
   const siteOps: Op[] = [];
-  const mainSite: Site = { id: mainSiteId, name: profile === 'restaurant' ? 'Cave du restaurant' : 'Cave principale', kind: 'cave', createdAt: created };
+  const mainSite: Site = {
+    id: mainSiteId,
+    name: profile === 'restaurant' ? 'Cave du restaurant' : 'Cave principale',
+    kind: 'cave',
+    createdAt: created,
+    layout: {
+      racks: [
+        {
+          id: 'rack-eurocave',
+          name: 'Armoire EuroCave (Vieillissement)',
+          prefix: 'ARM',
+          geometry: 'staggered_shelf',
+          rows: 5,
+          cols: 6,
+          doubleDepth: true,
+          staggered: true,
+        },
+        {
+          id: 'rack-matrix-a',
+          name: 'Casier Principal (Allée A)',
+          prefix: 'A',
+          geometry: 'matrix',
+          rows: 4,
+          cols: 6,
+          doubleDepth: false,
+          staggered: false,
+        },
+        {
+          id: 'rack-bulk-reserve',
+          name: 'Réserve Caisses & Vrac',
+          prefix: 'VRAC',
+          geometry: 'bulk',
+          rows: 2,
+          cols: 4,
+          doubleDepth: false,
+          staggered: false,
+        },
+      ],
+    },
+  };
   const sites: Site[] = [mainSite];
   const addSite = (name: string, kind: Site['kind']) => {
     const s: Site = { id: uid(), name, kind, createdAt: created };
@@ -179,10 +219,41 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
   const built = world.ledger.build(orgId, byId, DEMO_ACTOR, clock);
   for (const w of wines) w.buyPriceHT = built.lastCost.get(w.id) ?? w.buyPriceHT;
 
+  const eurocaveRack = mainSite.layout?.racks.find((r) => r.id === 'rack-eurocave');
+  const eurocaveSlots = eurocaveRack ? generateRackSlots(eurocaveRack) : [];
+  let eurocaveSlotIdx = 0;
+
+  const matrixRack = mainSite.layout?.racks.find((r) => r.id === 'rack-matrix-a');
+  const matrixSlots = matrixRack ? generateRackSlots(matrixRack) : [];
+  let matrixSlotIdx = 0;
+
   const stock: StockLevel[] = [];
   wines.forEach((w, i) => {
     const qty = built.balances.get(stockId(w.id, mainSiteId))?.qty ?? 0;
-    stock.push({ id: stockId(w.id, mainSiteId), wineId: w.id, siteId: mainSiteId, qty, bin: `${String.fromCharCode(65 + (i % 8))}${1 + Math.floor(i / 8)}`, updatedAt: now });
+    let bin: string | undefined;
+    let bins: string[] | undefined;
+
+    if (i < 8 && qty > 0) {
+      // Dans l'armoire EuroCave : 1 bouteille par alvéole
+      const assigned = eurocaveSlots.slice(eurocaveSlotIdx, eurocaveSlotIdx + qty).map((s) => s.code);
+      eurocaveSlotIdx += assigned.length;
+      bins = assigned;
+      bin = formatBinSummary(assigned);
+    } else if (i < 16 && qty > 0) {
+      // Dans le casier classique Allée A : 1 bouteille par alvéole
+      const count = Math.min(qty, 4);
+      const assigned = matrixSlots.slice(matrixSlotIdx, matrixSlotIdx + count).map((s) => s.code);
+      matrixSlotIdx += assigned.length;
+      bins = assigned;
+      bin = formatBinSummary(assigned);
+    } else if (i < 19 && qty > 0) {
+      // Zone vrac / caisses
+      bin = `VRAC-R1-C${i - 15}`;
+    } else {
+      // Sans emplacement pour tester l'assignation rapide
+      bin = undefined;
+    }
+    stock.push({ id: stockId(w.id, mainSiteId), wineId: w.id, siteId: mainSiteId, qty, bin, bins, updatedAt: now });
   });
   for (const b of built.balances.values()) if (b.siteId !== mainSiteId) stock.push({ id: stockId(b.wineId, b.siteId), wineId: b.wineId, siteId: b.siteId, qty: b.qty, updatedAt: now });
 

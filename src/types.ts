@@ -98,6 +98,25 @@ export interface Invite {
 
 export type SiteKind = 'cave' | 'restaurant' | 'bar' | 'boutique' | 'entrepot' | 'chambre';
 
+export type RackGeometry = 'matrix' | 'staggered_shelf' | 'bulk';
+
+export interface CellarRack {
+  id: string;
+  name: string;
+  geometry: RackGeometry;
+  rows: number; // nombre de clayettes ou niveaux
+  cols: number; // nombre de bouteilles ou compartiments par rangée
+  doubleDepth?: boolean; // vrai si rangée avant + rangée arrière (profondeur double)
+  staggered?: boolean; // vrai si empilement en quinconce (1 bouteille de moins sur le rang supérieur)
+  prefix?: string; // ex: "A", "ARM", "C"
+  notes?: string;
+  color?: string; // accent discret pour repérer le meuble
+}
+
+export interface SiteLayout {
+  racks: CellarRack[];
+}
+
 export interface Site {
   id: string;
   name: string;
@@ -106,6 +125,7 @@ export interface Site {
   notes?: string;
   isArchived?: boolean;
   createdAt: number;
+  layout?: SiteLayout;
 }
 
 export type WineColor = 'rouge' | 'blanc' | 'rose' | 'bulles' | 'orange' | 'doux' | 'spiritueux' | 'autre';
@@ -188,7 +208,8 @@ export interface StockLevel {
   wineId: string;
   siteId: string;
   qty: number;
-  bin?: string; // emplacement (casier, étagère)
+  bin?: string; // emplacement principal ou résumé (ex: "ARM-R1 · 6 btl" ou "VRAC-1")
+  bins?: string[]; // liste précise des alvéoles unitaires (1 emplacement par bouteille)
   updatedAt: number;
 }
 

@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowDownToLine, ArrowRightLeft, ArrowUpFromLine, ClipboardCheck, Command, CornerDownLeft, GlassWater, LogOut, Menu, Moon, Plus, Search, SlidersHorizontal, Sun, Wine as WineIcon } from 'lucide-react';
+import { ArrowDownToLine, ArrowRightLeft, ArrowUpFromLine, ClipboardCheck, Command, CornerDownLeft, GlassWater, LogOut, Menu, Moon, Plus, Search, SlidersHorizontal, Sparkles, Sun, Wine as WineIcon } from 'lucide-react';
 import { useOrg } from './org';
 import { useAuth } from './auth';
 import { useI18n } from '@/i18n';
 import { NAV, isNavVisible } from '@/registry';
-import { Modal, cx } from '@/ui';
+import { Modal, cx, useToast } from '@/ui';
 import { BrandMark, Monogram } from '@/pages/Auth';
 import { OfflineBanner } from '@/components/OfflineBanner';
+import { ModuleSwitcherModal } from '@/components/ModuleSwitcherModal';
 import { wineLabel, norm } from '@/lib/wine';
 import { useAutoRepublish } from '@/modules/carte/autoPublish';
 import type { BrandTheme } from '@/types';
@@ -47,7 +48,7 @@ function useWhiteLabel(brand: BrandTheme | undefined, enabled: boolean, dark: bo
 
 export function Layout() {
   const { t, locale, setLocale } = useI18n();
-  const { org, role, sites, activeSiteId, setActiveSiteId, orgs, switchOrg, hasModule, can } = useOrg();
+  const { org, role, sites, activeSiteId, setActiveSiteId, orgs, switchOrg, hasModule, can, overrideRole, setOverrideRole } = useOrg();
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const [dark, setDark] = useTheme();
@@ -55,6 +56,7 @@ export function Layout() {
   useWhiteLabel(org.brand, whiteLabel, dark);
   const [palette, setPalette] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
+  const [modulesOpen, setModulesOpen] = useState(false);
   const loc = useLocation();
   useAutoRepublish();
 
@@ -126,7 +128,20 @@ export function Layout() {
             </NavLink>
           ))}
         </nav>
-        <div className="mt-3 border-t border-border pt-3">
+        <div className="pt-2 pb-1">
+          <button
+            type="button"
+            onClick={() => setModulesOpen(true)}
+            className="flex w-full items-center gap-2 rounded-lg border border-dashed border-border bg-surface-2/60 px-3 py-2 text-xs font-medium text-ink hover:border-brand/50 hover:bg-brand-soft/40 transition cursor-pointer"
+          >
+            <SlidersHorizontal className="size-3.5 text-brand shrink-0" />
+            <span className="flex-1 truncate text-left">Modules &amp; Profil</span>
+            <span className="rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-semibold text-brand">
+              {org.modules.length}/6
+            </span>
+          </button>
+        </div>
+        <div className="mt-2 border-t border-border pt-3">
           {orgs.length > 1 && (
             <select
               value={org.id}
@@ -160,10 +175,44 @@ export function Layout() {
         <header className="no-print sticky top-0 z-30 flex flex-col border-b border-border bg-bg/85 backdrop-blur">
           <OfflineBanner />
           {(org.isDemo || user?.demo) && (
-            <div className="flex items-center justify-center gap-2 border-b border-accent/20 bg-accent/10 px-3 py-1 text-center text-[11px] font-medium text-accent">
-              <span>Démo — données fictives</span>
+            <div className="flex flex-wrap items-center justify-center gap-2 border-b border-accent/20 bg-accent/10 px-3 py-1 text-center text-[11px] font-medium text-accent">
+              <span className="font-semibold">Démo</span>
+              <button
+                type="button"
+                onClick={() => setModulesOpen(true)}
+                className="inline-flex items-center gap-1.5 rounded-full bg-accent/20 px-2.5 py-0.5 text-[11px] font-semibold text-accent hover:bg-accent/30 transition cursor-pointer"
+              >
+                <SlidersHorizontal className="size-3" />
+                <span>Modules : {t(`profile.${org.profile}`)} ({org.modules.length}/6)</span>
+              </button>
+              <div className="inline-flex items-center gap-1.5 pl-1">
+                <span className="text-muted">| Simuler rôle :</span>
+                <select
+                  value={overrideRole || ''}
+                  onChange={(e) => setOverrideRole((e.target.value as any) || null)}
+                  className="rounded border border-accent/30 bg-surface px-1.5 py-0.5 text-[11px] font-semibold text-ink cursor-pointer hover:border-accent"
+                  title="Simuler un rôle pour tester la séparation des accès (ex: masquer les marges pour l'équipe de salle)"
+                >
+                  <option value="">Rôle réel ({role})</option>
+                  <option value="owner">Propriétaire (tout voir)</option>
+                  <option value="manager">Responsable / Direction</option>
+                  <option value="sommelier">Chef Sommelier</option>
+                  <option value="accountant">Comptable (chiffres &amp; douane)</option>
+                  <option value="staff">Équipe de salle (marges masquées)</option>
+                </select>
+                {overrideRole && (
+                  <button
+                    type="button"
+                    onClick={() => setOverrideRole(null)}
+                    className="rounded bg-brand/15 px-1.5 py-0.5 text-[10px] font-semibold text-brand hover:bg-brand/25"
+                    title="Rétablir le rôle par défaut"
+                  >
+                    Réinitialiser
+                  </button>
+                )}
+              </div>
               {org.expiresAt && org.expiresAt > Date.now() && (
-                <span className="text-muted">· expire dans {Math.ceil((org.expiresAt - Date.now()) / 86_400_000)} jours</span>
+                <span className="text-muted">· expire dans {Math.ceil((org.expiresAt - Date.now()) / 86_400_000)} j</span>
               )}
             </div>
           )}
@@ -203,6 +252,18 @@ export function Layout() {
             </select>
           )}
           <div className="flex-1" />
+          <button
+            type="button"
+            onClick={() => setModulesOpen(true)}
+            title="Gérer les modules & profil métier"
+            className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-ink hover:border-brand/40 hover:bg-surface-2 transition cursor-pointer"
+          >
+            <SlidersHorizontal className="size-3.5 text-brand" />
+            <span className="hidden sm:inline">Modules</span>
+            <span className="rounded bg-brand-soft px-1.5 py-0.5 text-[10px] font-semibold text-brand">
+              {org.modules.length}/6
+            </span>
+          </button>
           <button onClick={() => setPalette(true)} className="rounded-lg p-2 text-muted hover:bg-surface-2 md:hidden" aria-label="Rechercher">
             <Search className="size-5" />
           </button>
@@ -262,6 +323,16 @@ export function Layout() {
         </nav>
         <Modal open={moreOpen} onClose={() => setMoreOpen(false)} title={t('nav.more')} size="sm">
           <div className="space-y-1">
+            <button
+              onClick={() => {
+                setMoreOpen(false);
+                setModulesOpen(true);
+              }}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink hover:bg-surface-2"
+            >
+              <SlidersHorizontal className="size-4.5 text-brand" />
+              <span>Modules &amp; Profil ({org.modules.length}/6 activés)</span>
+            </button>
             {rest.map((n) => (
               <NavLink key={n.id} to={n.path} className={linkCls}>
                 <n.icon className="size-4.5" />
@@ -276,7 +347,8 @@ export function Layout() {
         </Modal>
       </div>
 
-      <CommandPalette open={palette} onClose={() => setPalette(false)} />
+      <CommandPalette open={palette} onClose={() => setPalette(false)} onOpenModules={() => setModulesOpen(true)} />
+      <ModuleSwitcherModal open={modulesOpen} onClose={() => setModulesOpen(false)} />
     </div>
   );
 }
@@ -293,10 +365,11 @@ interface Cmd {
   hay: string;
 }
 
-function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
+function CommandPalette({ open, onClose, onOpenModules }: { open: boolean; onClose: () => void; onOpenModules?: () => void }) {
   const { t } = useI18n();
   const nav = useNavigate();
-  const { org, role, wines, hasModule } = useOrg();
+  const { toast } = useToast();
+  const { org, updateOrg, role, wines, hasModule, setOverrideRole } = useOrg();
   const [q, setQ] = useState('');
   const [idx, setIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -319,21 +392,125 @@ function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void 
       hay: norm(`${t(n.labelKey)} ${n.keywords ?? ''}`),
     }));
     const actions: Cmd[] = [
-      { id: 'a-wine', label: 'Nouveau vin', path: '/vins?new=1', ok: true },
-      { id: 'a-in', label: 'Entrée de stock', path: '/stock?new=in', ok: true },
-      { id: 'a-out', label: 'Sortie de stock', path: '/stock?new=out', ok: true },
-      { id: 'a-inv', label: 'Démarrer un inventaire', path: '/inventaire', ok: true },
-      { id: 'a-quote', label: 'Nouveau devis', path: '/negoce?new=quote', ok: hasModule('negoce') && ['owner', 'manager', 'accountant'].includes(role) },
-    ]
-      .filter((a) => a.ok)
-      .map((a) => ({
-        id: a.id,
-        label: a.label,
+      {
+        id: 'a-role-staff',
+        label: 'Simuler vue : Équipe de salle (masquer marges et prix d’achat)',
+        group: 'Démo & Rôles',
+        icon: <SlidersHorizontal className="size-4 text-warn" />,
+        run: () => {
+          setOverrideRole('staff');
+          toast('Simulation active : Rôle Équipe de salle (marges et compta masquées)', 'ok');
+        },
+        hay: norm('simuler role equipe salle staff serveur masquer marges securite'),
+      },
+      {
+        id: 'a-role-sommelier',
+        label: 'Simuler vue : Chef Sommelier (carte, service et cave)',
+        group: 'Démo & Rôles',
+        icon: <SlidersHorizontal className="size-4 text-brand" />,
+        run: () => {
+          setOverrideRole('sommelier');
+          toast('Simulation active : Rôle Chef Sommelier', 'ok');
+        },
+        hay: norm('simuler role chef sommelier cave carte vins'),
+      },
+      {
+        id: 'a-role-owner',
+        label: 'Rétablir vue : Propriétaire / Direction (accès complet)',
+        group: 'Démo & Rôles',
+        icon: <SlidersHorizontal className="size-4 text-ok" />,
+        run: () => {
+          setOverrideRole(null);
+          toast('Rôle Propriétaire restauré', 'ok');
+        },
+        hay: norm('retablir role proprietaire direction vue complete reset simulation'),
+      },
+      {
+        id: 'a-modules',
+        label: 'Gérer les modules & profils démo (Changer de profil)',
+        group: t('nav.cmdkActions'),
+        icon: <SlidersHorizontal className="size-4 text-brand" />,
+        run: () => onOpenModules?.(),
+        hay: norm('modules profil demo changer restaurant negoce caviste chaine activation configurer'),
+      },
+      {
+        id: 'a-all-modules',
+        label: 'Mode Démo Complète (Activer tous les 6 modules)',
+        group: t('nav.cmdkActions'),
+        icon: <Sparkles className="size-4 text-accent" />,
+        run: async () => {
+          await updateOrg({ modules: ['stock', 'carte', 'achats', 'negoce', 'compta', 'pilotage'] });
+          toast('Tous les modules ont été activés !', 'ok');
+        },
+        hay: norm('demo complete full suite tous les modules tout activer'),
+      },
+      {
+        id: 'a-preset-rest',
+        label: 'Activer profil : Restaurant / Bar (Carte, Service, Achats, Stock)',
+        group: t('nav.cmdkActions'),
+        icon: <SlidersHorizontal className="size-4 text-muted" />,
+        run: async () => {
+          await updateOrg({ profile: 'restaurant', modules: ['stock', 'carte', 'achats', 'pilotage'] });
+          toast('Profil Restaurant appliqué', 'ok');
+        },
+        hay: norm('profil restaurant bistrot bar palace service carte'),
+      },
+      {
+        id: 'a-preset-negoce',
+        label: 'Activer profil : Maison de Négoce (B2B, Achats, Compta, Pilotage, Stock)',
+        group: t('nav.cmdkActions'),
+        icon: <SlidersHorizontal className="size-4 text-muted" />,
+        run: async () => {
+          await updateOrg({ profile: 'negoce', modules: ['stock', 'achats', 'negoce', 'compta', 'pilotage'] });
+          toast('Profil Maison de Négoce appliqué', 'ok');
+        },
+        hay: norm('profil negoce b2b factures devis douane drm compta'),
+      },
+      {
+        id: 'a-wine',
+        label: 'Nouveau vin',
         group: t('nav.cmdkActions'),
         icon: <Plus className="size-4" />,
-        run: () => nav(a.path),
-        hay: norm(a.label),
-      }));
+        run: () => nav('/vins?new=1'),
+        hay: norm('nouveau vin'),
+      },
+      {
+        id: 'a-in',
+        label: 'Entrée de stock',
+        group: t('nav.cmdkActions'),
+        icon: <Plus className="size-4" />,
+        run: () => nav('/stock?new=in'),
+        hay: norm('entree de stock'),
+      },
+      {
+        id: 'a-out',
+        label: 'Sortie de stock',
+        group: t('nav.cmdkActions'),
+        icon: <Plus className="size-4" />,
+        run: () => nav('/stock?new=out'),
+        hay: norm('sortie de stock'),
+      },
+      {
+        id: 'a-inv',
+        label: 'Démarrer un inventaire',
+        group: t('nav.cmdkActions'),
+        icon: <Plus className="size-4" />,
+        run: () => nav('/inventaire'),
+        hay: norm('demarrer un inventaire'),
+      },
+      ...(hasModule('negoce') && ['owner', 'manager', 'accountant'].includes(role)
+        ? [
+            {
+              id: 'a-quote',
+              label: 'Nouveau devis',
+              group: t('nav.cmdkActions'),
+              icon: <Plus className="size-4" />,
+              run: () => nav('/negoce?new=quote'),
+              hay: norm('nouveau devis'),
+            },
+          ]
+        : []),
+    ];
     const ws: Cmd[] = wines
       .filter((w) => !w.isArchived)
       .map((w) => ({

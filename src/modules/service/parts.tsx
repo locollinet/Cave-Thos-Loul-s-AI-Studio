@@ -56,10 +56,17 @@ export function FreshnessBadge({ bottle, now }: { bottle: OpenBottle; now: numbe
   const tone = f.level === 'expired' ? 'bad' : f.level === 'soon' ? 'warn' : 'ok';
   const detail = f.leftMs >= 0 ? t('service.fresh.left', { d: fmt(f.leftMs) }) : t('service.fresh.over', { d: fmt(-f.leftMs) });
   return (
-    <Badge tone={tone} className="px-2.5 py-1 text-xs">
-      {t(`service.fresh.${f.level}`)}
-      <span className="font-normal opacity-80">· {detail}</span>
-    </Badge>
+    <div className="flex flex-wrap items-center gap-1.5">
+      {bottle.preservation === 'coravin' && (
+        <span className="inline-flex items-center gap-1 rounded bg-accent/20 px-2 py-0.5 text-[10px] font-semibold text-accent border border-accent/30" title="Conservation sous gaz inerte / azote (Coravin) : 28 jours">
+          ⚡ Coravin / Azote (28j)
+        </span>
+      )}
+      <Badge tone={tone} className="px-2.5 py-1 text-xs">
+        {t(`service.fresh.${f.level}`)}
+        <span className="font-normal opacity-80">· {detail}</span>
+      </Badge>
+    </div>
   );
 }
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { ArrowDownToLine, ArrowRightLeft, ArrowUpFromLine, Boxes, Download, SlidersHorizontal } from 'lucide-react';
-import type { Movement, MovementType, Wine } from '@/types';
+import type { Movement, MovementType, Site, StockLevel, Wine } from '@/types';
 import { useCollection, useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
 import { Badge, Button, EmptyState, PageHeader, SearchInput, SortTh, Table, Tabs, Td, Th, cx } from '@/ui';
@@ -14,6 +14,8 @@ import { COLOR_DOT } from './Wines';
 import { WineFilters } from '@/components/WineFilters';
 import { WineGroups } from '@/components/WineGroups';
 import { EMPTY_FILTERS, matchesWine, sortWines, type WineGroupBy, type WineSort } from '@/lib/wineFilters';
+import { CellarPlan } from './stock/CellarPlan';
+import { QuickBinModal } from './stock/QuickBinPopover';
 
 const MOVE_TONE: Record<MovementType, 'ok' | 'neutral' | 'info' | 'warn'> = { in: 'ok', out: 'neutral', transfer: 'info', adjust: 'warn' };
 const isMove = (v: string | null): v is MovementType => v === 'in' || v === 'out' || v === 'transfer' || v === 'adjust';
@@ -22,20 +24,40 @@ export default function StockPage() {
   const { t, intl } = useI18n();
   const { wines, stock, sites, activeSiteId, can, orgId } = useOrg();
   const [params, setParams] = useSearchParams();
-  const [tab, setTab] = useState<'levels' | 'journal'>('levels');
+  const urlTab = params.get('tab');
+  const [tab, setTab] = useState<'levels' | 'cellar' | 'journal'>(() => (urlTab === 'cellar' || urlTab === 'journal' ? urlTab : 'levels'));
   const [q, setQ] = useState('');
   const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
   const [group, setGroup] = useState<WineGroupBy>('terroir');
   const [sort, setSort] = useState<WineSort>('producer');
   const [reverse, setReverse] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [quickBinTarget, setQuickBinTarget] = useState<{ wine: Wine; site: Site; level?: StockLevel } | null>(null);
   const [modal, setModal] = useState<MovementType | null>(() => (isMove(params.get('new')) ? (params.get('new') as MovementType) : null));
   const { rows: movements, loading } = useCollection<Movement>('movements', { orderBy: ['createdAt', 'desc'], limit: 500 });
+
+  useEffect(() => {
+    const t = params.get('tab');
+    if (t === 'cellar' || t === 'journal' || t === 'levels') setTab(t);
+  }, [params]);
 
   useEffect(() => {
     const n = params.get('new');
     if (isMove(n)) setModal(n);
   }, [params]);
+
+  const switchTab = (nextTab: 'levels' | 'cellar' | 'journal') => {
+    setTab(nextTab);
+    setParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        if (nextTab === 'levels') p.delete('tab');
+        else p.set('tab', nextTab);
+        return p;
+      },
+      { replace: true },
+    );
+  };
 
   const closeModal = () => {
     setModal(null);
@@ -89,11 +111,14 @@ export default function StockPage() {
   };
 
   const grouped = group !== 'none';
-  const columns = 2 + visibleSites.length + 3;
+  const isSingleSite = visibleSites.length === 1;
+  const singleSite = isSingleSite ? visibleSites[0] : null;
+  const columns = 2 + visibleSites.length + 3 + (isSingleSite ? 1 : 0);
   const head = (
     <tr>
       <Th className="w-6" />
       <SortTh active={sort === 'producer'} reverse={reverse} onClick={() => sortBy('producer')}>{t('stock.wine')}</SortTh>
+      {isSingleSite && <Th>{t('stock.bin')}</Th>}
       {visibleSites.map((s) => <Th key={s.id} right>{s.name}</Th>)}
       <SortTh right active={sort === 'qty'} reverse={reverse} onClick={() => sortBy('qty')}>{t('common.total')}</SortTh>
       <Th right>{t('stock.value')}</Th>
@@ -110,6 +135,7 @@ export default function StockPage() {
   );
   const row = (w: Wine) => {
     const r = rowsById.get(w.id)!;
+    const singleLevel = singleSite ? stock.find((l) => l.wineId === w.id && l.siteId === singleSite.id) : null;
     return (
       <tr onClick={() => setOpenId(w.id)} className="cursor-pointer hover:bg-surface-2/60">
         <Td className="w-6"><span className={cx('block size-2.5 rounded-full', COLOR_DOT[w.color])} /></Td>
@@ -117,6 +143,25 @@ export default function StockPage() {
           {grouped ? `${w.name} · ${w.vintage}` : wineLabel(w)}
           {w.formatCl !== 75 && <Badge className="ml-2">{w.formatCl === 150 ? 'Magnum' : `${w.formatCl} cl`}</Badge>}
         </Td>
+        {isSingleSite && (
+          <Td className="text-xs font-mono text-muted whitespace-nowrap">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (singleSite) setQuickBinTarget({ wine: w, site: singleSite, level: singleLevel ?? undefined });
+              }}
+              className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-surface-3 hover:text-brand cursor-pointer"
+              title="Modifier l'emplacement"
+            >
+              {singleLevel?.bin ? (
+                <span className="text-ink font-semibold">{singleLevel.bin}</span>
+              ) : (
+                <span className="text-muted/70 italic">+ Emplacement</span>
+              )}
+            </button>
+          </Td>
+        )}
         {r.per.map((n, i) => <Td key={i} right className={cx(n <= 0 && 'text-muted')}>{n}</Td>)}
         <Td right className="font-semibold">{r.total}</Td>
         <Td right className="text-muted">{eur(r.total * (w.buyPriceHT ?? 0), 'EUR', intl)}</Td>
@@ -126,6 +171,7 @@ export default function StockPage() {
   };
   const card = (w: Wine) => {
     const r = rowsById.get(w.id)!;
+    const singleLevel = singleSite ? stock.find((l) => l.wineId === w.id && l.siteId === singleSite.id) : null;
     return (
       <button type="button" onClick={() => setOpenId(w.id)} className="w-full px-3 py-2.5 text-left hover:bg-surface-2">
         <span className="flex items-center gap-3">
@@ -134,6 +180,7 @@ export default function StockPage() {
             <span className="block truncate text-sm font-medium">{w.name}</span>
             <span className="block truncate text-xs text-muted">
               {grouped ? '' : `${w.producer} · `}{w.vintage}
+              {singleLevel?.bin && ` · 📍 ${singleLevel.bin}`}
               {visibleSites.length > 1 && ` · ${visibleSites.map((s, i) => `${s.name} ${r.per[i]}`).join(' · ')}`}
             </span>
           </span>
@@ -159,83 +206,105 @@ export default function StockPage() {
           </div>
         }
       />
-      <Tabs value={tab} onChange={setTab} tabs={[{ value: 'levels', label: t('stock.levels') }, { value: 'journal', label: t('stock.journal'), count: journal.length }]} />
-      {tab === 'levels' ? (
-        <WineFilters
-          wines={pool}
-          value={filters}
-          onChange={setFilters}
-          query={q}
-          onQuery={setQ}
-          group={group}
-          onGroup={setGroup}
-          sort={sort}
-          onSort={(s) => { setSort(s); setReverse(false); }}
-          count={rows.length}
-          qty={rows.reduce((sum, r) => sum + r.total, 0)}
-          viewsKey={`${orgId}:stock`}
-          extra={<Button className="md:hidden" aria-label={t('common.export')} icon={<Download className="size-4" />} onClick={exportCsv} />}
-        />
-      ) : (
-        <div className="mb-4 space-y-2">
-          <SearchInput value={q} onChange={setQ} placeholder={t('common.search')} />
-          <p className="text-xs text-muted">{t('discover.journalHint')}</p>
-        </div>
-      )}
+      <Tabs
+        value={tab}
+        onChange={switchTab}
+        tabs={[
+          { value: 'levels', label: t('stock.levels') },
+          { value: 'cellar', label: t('stock.cellarPlan') },
+          { value: 'journal', label: t('stock.journal'), count: journal.length },
+        ]}
+      />
 
-      {tab === 'levels' ? (
-        rows.length === 0 ? (
-          <EmptyState icon={<Boxes className="size-8" />} title={t('stock.empty')} hint={t('stock.emptyHint')} />
-        ) : (
-          <WineGroups wines={rows.map((r) => r.w)} by={group} qty={qty} columns={columns} head={head} row={row} card={card} />
-        )
-      ) : loading ? null : journal.length === 0 ? (
-        <EmptyState icon={<Boxes className="size-8" />} title={t('stock.journalEmpty')} />
+      {tab === 'cellar' ? (
+        <CellarPlan />
+      ) : tab === 'levels' ? (
+        <>
+          <WineFilters
+            wines={pool}
+            value={filters}
+            onChange={setFilters}
+            query={q}
+            onQuery={setQ}
+            group={group}
+            onGroup={setGroup}
+            sort={sort}
+            onSort={(s) => { setSort(s); setReverse(false); }}
+            count={rows.length}
+            qty={rows.reduce((sum, r) => sum + r.total, 0)}
+            viewsKey={`${orgId}:stock`}
+            extra={<Button className="md:hidden" aria-label={t('common.export')} icon={<Download className="size-4" />} onClick={exportCsv} />}
+          />
+          {rows.length === 0 ? (
+            <EmptyState icon={<Boxes className="size-8" />} title={t('stock.empty')} hint={t('stock.emptyHint')} />
+          ) : (
+            <WineGroups wines={rows.map((r) => r.w)} by={group} qty={qty} columns={columns} head={head} row={row} card={card} />
+          )}
+        </>
       ) : (
         <>
-          <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface md:hidden">
-            {journal.map((m) => (
-              <li key={m.id} className="flex items-center gap-3 px-3 py-2.5">
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{m.wineLabel}</span>
-                  <span className="block truncate text-xs text-muted">
-                    {dateFr(m.date, intl)} · {t(`reason.${m.reason}`)} · {m.type === 'transfer' ? `${siteName(m.siteId)} → ${siteName(m.toSiteId)}` : siteName(m.siteId)}
-                  </span>
-                </span>
-                <span className={cx('tabular font-display text-xl', m.type === 'in' && 'text-ok')}>{signed(m)}</span>
-              </li>
-            ))}
-          </ul>
-          <Table className="hidden md:block">
-            <thead>
-              <tr>
-                <Th>{t('common.date')}</Th>
-                <Th>{t('stock.wine')}</Th>
-                <Th>{t('stock.type')}</Th>
-                <Th right>{t('common.qty')}</Th>
-                <Th>{t('common.site')}</Th>
-                <Th>{t('stock.reason')}</Th>
-                <Th>{t('stock.by')}</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {journal.map((m) => (
-                <tr key={m.id} className="hover:bg-surface-2/50">
-                  <Td className="whitespace-nowrap text-muted">{dateFr(m.date, intl)}</Td>
-                  <Td className="max-w-72 truncate font-medium">{m.wineLabel}</Td>
-                  <Td><Badge tone={MOVE_TONE[m.type]}>{t(`stock.type.${m.type}`)}</Badge></Td>
-                  <Td right className="font-semibold">{signed(m)}</Td>
-                  <Td className="text-muted">{m.type === 'transfer' ? `${siteName(m.siteId)} → ${siteName(m.toSiteId)}` : siteName(m.siteId)}</Td>
-                  <Td className="text-muted">{t(`reason.${m.reason}`)}</Td>
-                  <Td className="text-muted">{m.userName}</Td>
-                </tr>
-              ))}
-            </tbody>
-          </Table>
+          <div className="mb-4 space-y-2">
+            <SearchInput value={q} onChange={setQ} placeholder={t('common.search')} />
+            <p className="text-xs text-muted">{t('discover.journalHint')}</p>
+          </div>
+          {loading ? null : journal.length === 0 ? (
+            <EmptyState icon={<Boxes className="size-8" />} title={t('stock.journalEmpty')} />
+          ) : (
+            <>
+              <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border bg-surface md:hidden">
+                {journal.map((m) => (
+                  <li key={m.id} className="flex items-center gap-3 px-3 py-2.5">
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{m.wineLabel}</span>
+                      <span className="block truncate text-xs text-muted">
+                        {dateFr(m.date, intl)} · {t(`reason.${m.reason}`)} · {m.type === 'transfer' ? `${siteName(m.siteId)} → ${siteName(m.toSiteId)}` : siteName(m.siteId)}
+                      </span>
+                    </span>
+                    <span className={cx('tabular font-display text-xl', m.type === 'in' && 'text-ok')}>{signed(m)}</span>
+                  </li>
+                ))}
+              </ul>
+              <Table className="hidden md:block">
+                <thead>
+                  <tr>
+                    <Th>{t('common.date')}</Th>
+                    <Th>{t('stock.wine')}</Th>
+                    <Th>{t('stock.type')}</Th>
+                    <Th right>{t('common.qty')}</Th>
+                    <Th>{t('common.site')}</Th>
+                    <Th>{t('stock.reason')}</Th>
+                    <Th>{t('stock.by')}</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {journal.map((m) => (
+                    <tr key={m.id} className="hover:bg-surface-2/50">
+                      <Td className="whitespace-nowrap text-muted">{dateFr(m.date, intl)}</Td>
+                      <Td className="max-w-72 truncate font-medium">{m.wineLabel}</Td>
+                      <Td><Badge tone={MOVE_TONE[m.type]}>{t(`stock.type.${m.type}`)}</Badge></Td>
+                      <Td right className="font-semibold">{signed(m)}</Td>
+                      <Td className="text-muted">{m.type === 'transfer' ? `${siteName(m.siteId)} → ${siteName(m.toSiteId)}` : siteName(m.siteId)}</Td>
+                      <Td className="text-muted">{t(`reason.${m.reason}`)}</Td>
+                      <Td className="text-muted">{m.userName}</Td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Table>
+            </>
+          )}
         </>
       )}
+
       {modal && <MovementModal initialType={modal} onClose={closeModal} />}
       {opened && <WineDrawer wine={opened} onClose={() => setOpenId(null)} />}
+      {quickBinTarget && (
+        <QuickBinModal
+          wine={quickBinTarget.wine}
+          site={quickBinTarget.site}
+          level={quickBinTarget.level}
+          onClose={() => setQuickBinTarget(null)}
+        />
+      )}
     </div>
   );
 }

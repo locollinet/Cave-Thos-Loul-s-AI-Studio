@@ -21,6 +21,7 @@ export interface OpenBottle {
   glassesServed: number;
   priceTTC?: number; // prix du verre à l'ouverture
   status: OpenBottleStatus;
+  preservation?: 'standard' | 'coravin'; // flacon classique ou sous gaz inerte / Coravin / azote
   closedAt?: number;
   lostGlasses?: number;
   updatedAt?: number;

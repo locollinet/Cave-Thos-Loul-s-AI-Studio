@@ -264,8 +264,19 @@ export function OnboardingPage() {
               <Input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
             </Field>
             <div>
-              <div className="text-sm font-medium">{t('onb.modules')}</div>
-              <p className="mb-2 text-xs text-muted">{t('onb.modulesHint')}</p>
+              <div className="flex items-center justify-between mb-1">
+                <div className="text-sm font-medium">{t('onb.modules')}</div>
+                <button
+                  type="button"
+                  onClick={() => setModules(['stock', 'carte', 'achats', 'negoce', 'compta', 'pilotage'])}
+                  className="text-xs text-brand hover:underline font-medium cursor-pointer"
+                >
+                  Tout activer (Démo complète)
+                </button>
+              </div>
+              <p className="mb-2 text-xs text-muted">
+                {t('onb.modulesHint')} Vous pourrez changer de profil et activer d’autres modules à tout moment en un clic depuis l’application.
+              </p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {MODULE_LIST.map((m) => (
                   <div key={m.id} className="rounded-lg border border-border p-3">
