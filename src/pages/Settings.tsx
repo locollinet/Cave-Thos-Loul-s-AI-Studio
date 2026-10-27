@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Copy, Plus, Trash2 } from 'lucide-react';
-import type { BrandTheme, Invite, LegalInfo, Locale, Member, ModuleId, Role, Site, SiteKind } from '@/types';
+import type { BrandTheme, Invite, LegalInfo, Locale, Member, ModuleId, OrgProfile, Role, Site, SiteKind } from '@/types';
 import { useCollection, useOrg } from '@/app/org';
 import { useAuth } from '@/app/auth';
 import { useI18n } from '@/i18n';
-import { Badge, Button, Card, Checkbox, Field, Input, NumberInput, PageHeader, Select, Table, Tabs, Td, Th, Textarea, useToast } from '@/ui';
+import { Badge, Button, Card, Checkbox, Field, Input, NumberInput, PageHeader, Select, Table, Tabs, Td, Th, Textarea, useToast, cx } from '@/ui';
 import { MODULE_LIST } from '@/registry';
 import { downloadBlob, uid } from '@/lib/utils';
 import { resetLocalData } from '@/data/store';
@@ -209,18 +209,85 @@ function ModulesTab() {
   const { toast } = useToast();
   const { org, updateOrg } = useOrg();
   const toggle = async (id: ModuleId, on: boolean) => {
-    if (id === 'stock') return;
+    if (id === 'stock') {
+      toast('Le module Stock & Cave est le socle de l’application.', 'info');
+      return;
+    }
     await updateOrg({ modules: on ? [...org.modules, id] : org.modules.filter((m) => m !== id) });
     toast(t('common.saved'));
   };
+
+  const PRESETS_LIST: { id: OrgProfile | 'all'; label: string; modules: ModuleId[] }[] = [
+    { id: 'all', label: '✨ Tout activer (Full Démo)', modules: ['stock', 'carte', 'achats', 'negoce', 'compta', 'pilotage'] },
+    { id: 'restaurant', label: '🍽️ Restaurant / Bar', modules: ['stock', 'carte', 'achats', 'pilotage'] },
+    { id: 'negoce', label: '📦 Maison de Négoce', modules: ['stock', 'achats', 'negoce', 'compta', 'pilotage'] },
+    { id: 'independant', label: '🍷 Caviste Indépendant', modules: ['stock', 'achats', 'negoce', 'compta', 'pilotage', 'carte'] },
+    { id: 'chaine', label: '🏨 Groupe & Chaîne', modules: ['stock', 'carte', 'achats', 'compta', 'pilotage'] },
+  ];
+
+  const applyPreset = async (p: (typeof PRESETS_LIST)[number]) => {
+    await updateOrg({
+      modules: p.modules,
+      ...(p.id !== 'all' ? { profile: p.id as OrgProfile } : {}),
+    });
+    toast(`Configuration « ${p.label} » appliquée (${p.modules.length} modules)`, 'ok');
+  };
+
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {MODULE_LIST.map((m) => (
-        <Card key={m.id} className="p-4">
-          <Checkbox checked={org.modules.includes(m.id)} onChange={(v) => toggle(m.id, v)} label={<span className="flex items-center gap-2 font-medium"><m.icon className="size-4 text-brand" />{t(m.labelKey)}</span>} />
-          <p className="ml-6.5 mt-1 text-sm text-muted">{t(m.descKey)}</p>
-        </Card>
-      ))}
+    <div className="space-y-4">
+      <Card className="border-brand/20 bg-brand-soft/30 p-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold text-ink">Profils types &amp; raccourcis démo</div>
+            <p className="text-xs text-muted mt-0.5">
+              Les modules sont 100% modulables : vous pouvez activer ou masquer des menus selon vos besoins de présentation sans perdre aucune donnée.
+            </p>
+          </div>
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {PRESETS_LIST.map((p) => {
+            const isMatch =
+              p.id === 'all'
+                ? p.modules.every((m) => org.modules.includes(m))
+                : org.profile === p.id && p.modules.every((m) => org.modules.includes(m));
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => applyPreset(p)}
+                className={cx(
+                  'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition cursor-pointer',
+                  isMatch
+                    ? 'border-brand bg-brand text-brand-fg shadow-xs'
+                    : 'border-border bg-surface text-ink hover:bg-surface-2',
+                )}
+              >
+                <span>{p.label}</span>
+                {isMatch && <span className="ml-1 text-[10px] font-bold">✓</span>}
+              </button>
+            );
+          })}
+        </div>
+      </Card>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {MODULE_LIST.map((m) => (
+          <Card key={m.id} className="p-4">
+            <Checkbox
+              checked={org.modules.includes(m.id)}
+              onChange={(v) => toggle(m.id, v)}
+              label={
+                <span className="flex items-center gap-2 font-medium">
+                  <m.icon className="size-4 text-brand" />
+                  {t(m.labelKey)}
+                  {m.id === 'stock' && <span className="text-[10px] font-normal text-muted">(Obligatoire)</span>}
+                </span>
+              }
+            />
+            <p className="ml-6.5 mt-1 text-sm text-muted">{t(m.descKey)}</p>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }
@@ -267,6 +334,7 @@ function SitesTab() {
           <tr>
             <Th>{t('common.name')}</Th>
             <Th>{t('settings.siteKind')}</Th>
+            <Th>{t('stock.racks')}</Th>
             <Th />
           </tr>
         </thead>
@@ -277,6 +345,9 @@ function SitesTab() {
                 <Input defaultValue={s.name} onBlur={(e) => e.target.value.trim() && e.target.value !== s.name && rename(s, e.target.value.trim())} className="h-9" />
               </Td>
               <Td className="text-muted">{t(`site.${s.kind}`)}</Td>
+              <Td className="text-xs text-muted font-mono">
+                {s.layout?.racks?.length ? `${s.layout.racks.length} configuré(s)` : '—'}
+              </Td>
               <Td right>
                 <Button variant="ghost" size="sm" onClick={() => archive(s)} aria-label={t('common.archive')}>
                   <Trash2 className="size-4" />

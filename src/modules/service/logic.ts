@@ -61,12 +61,14 @@ export const DEFAULT_FRESHNESS_DAYS: Record<FreshnessGroup, number> = { sparklin
 export const SOON_RATIO = 0.75;
 
 export function freshness(
-  b: Pick<OpenBottle, 'openedAt' | 'closedAt' | 'color'>,
+  b: Pick<OpenBottle, 'openedAt' | 'closedAt' | 'color' | 'preservation'>,
   now = Date.now(),
   days: Record<FreshnessGroup, number> = DEFAULT_FRESHNESS_DAYS,
 ): { level: FreshnessLevel; group: FreshnessGroup; maxMs: number; ageMs: number; leftMs: number } {
   const group = FRESHNESS_GROUP[b.color ?? 'autre'] ?? 'still';
-  const maxMs = days[group] * DAY;
+  // Flacons sous gaz inerte / Coravin / azote : 28 jours au lieu de la durée standard
+  const maxDays = b.preservation === 'coravin' ? 28 : days[group];
+  const maxMs = maxDays * DAY;
   const ageMs = openDurationMs(b, now);
   const level: FreshnessLevel = ageMs > maxMs ? 'expired' : ageMs >= maxMs * SOON_RATIO ? 'soon' : 'fresh';
   return { level, group, maxMs, ageMs, leftMs: maxMs - ageMs };
@@ -146,6 +148,7 @@ export function buildOpenBottleOps(
   actor: Actor,
   now = Date.now(),
   id = uid(),
+  preservation: 'standard' | 'coravin' = 'standard',
 ): { ops: Op[]; bottle: OpenBottle } | null {
   if (!wine.byGlass?.enabled) return null;
   const glassesTotal = glassesPerBottle(wine.formatCl, wine.byGlass.glassCl);
@@ -167,6 +170,7 @@ export function buildOpenBottleOps(
     glassesServed: 0,
     priceTTC: wine.byGlass.priceTTC,
     status: 'open',
+    preservation,
     lostGlasses: 0,
     updatedAt: now,
   };

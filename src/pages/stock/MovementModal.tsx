@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { MovementReason, MovementType, Wine } from '@/types';
 import { useOrg } from '@/app/org';
 import { useAuth } from '@/app/auth';
 import { useT } from '@/i18n';
 import { Button, Field, Input, Modal, NumberInput, Segmented, Select, useToast } from '@/ui';
 import { WinePicker } from '@/components/WinePicker';
-import { buildMovementOps, qtyAt } from '@/data/stock';
+import { buildMovementOps, qtyAt, stockId } from '@/data/stock';
 import { today } from '@/lib/utils';
 
 const REASONS: Record<MovementType, MovementReason[]> = {
@@ -40,7 +40,15 @@ export function MovementModal({
   const [cost, setCost] = useState<number | undefined>(initialWine?.buyPriceHT);
   const [partnerId, setPartnerId] = useState('');
   const [note, setNote] = useState('');
+  const [bin, setBin] = useState('');
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (wine && siteId) {
+      const existing = stock.find((s) => s.wineId === wine.id && s.siteId === siteId)?.bin ?? '';
+      setBin(existing);
+    }
+  }, [wine, siteId, stock]);
 
   const available = wine ? qtyAt(stock, wine.id, siteId) : 0;
   const delta = type === 'adjust' ? qty ?? 0 : qty ?? 0;
@@ -59,15 +67,22 @@ export function MovementModal({
     if (!wine || !user || !qty) return;
     setBusy(true);
     try {
-      await commit(
-        buildMovementOps(
-          orgId,
-          [{ wine, siteId, toSiteId: type === 'transfer' ? toSiteId : undefined, type, qty, reason, date, unitCostHT: type === 'in' ? cost : undefined, partnerId: partnerId || undefined, note: note || undefined }],
-          { userId: user.uid, userName: user.name },
-          Date.now(),
-          stock,
-        ),
+      const ops = buildMovementOps(
+        orgId,
+        [{ wine, siteId, toSiteId: type === 'transfer' ? toSiteId : undefined, type, qty, reason, date, unitCostHT: type === 'in' ? cost : undefined, partnerId: partnerId || undefined, note: note || undefined }],
+        { userId: user.uid, userName: user.name },
+        Date.now(),
+        stock,
       );
+      if ((type === 'in' || type === 'adjust') && bin.trim()) {
+        ops.push({
+          op: 'set',
+          path: `orgs/${orgId}/stock/${stockId(wine.id, siteId)}`,
+          data: { bin: bin.trim() },
+          merge: true,
+        });
+      }
+      await commit(ops);
       toast(t('stock.saved'));
       if (again) {
         setWine(undefined);
@@ -151,6 +166,11 @@ export function MovementModal({
           {type === 'in' && (
             <Field label={t('stock.unitCost')}>
               <NumberInput value={cost} onChange={setCost} step="0.01" min={0} />
+            </Field>
+          )}
+          {(type === 'in' || type === 'adjust') && (
+            <Field label={t('stock.bin')} hint="Emplacement ou clayette (ex: A1, ARM-1)">
+              <Input value={bin} onChange={(e) => setBin(e.target.value)} placeholder="Ex: A1, C3-AV..." />
             </Field>
           )}
           {(type === 'in' || (type === 'out' && ['vente', 'offert', 'bouchonne'].includes(reason))) && (

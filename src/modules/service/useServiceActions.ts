@@ -73,16 +73,16 @@ export function useServiceActions(siteId: string, bottles: OpenBottle[]) {
   );
 
   const openBottle = useCallback(
-    (wine: Wine, onOpened?: () => void) => {
+    (wine: Wine, onOpened?: () => void, preservation: 'standard' | 'coravin' = 'standard') => {
       if (qtyAt(stock, wine.id, siteId) < 1) {
         toast(t('service.toast.noStock'), 'bad');
         return;
       }
-      const res = buildOpenBottleOps(orgId, wine, siteId, actor);
+      const res = buildOpenBottleOps(orgId, wine, siteId, actor, Date.now(), undefined, preservation);
       const label = wineLabel(wine);
       run(`open:${wine.id}`, res?.ops ?? null, () => {
         onOpened?.();
-        toast(t('service.toast.opened', { wine: label }), 'ok', {
+        toast(t('service.toast.opened', { wine: label }) + (preservation === 'coravin' ? ' (Conservation Coravin / Azote)' : ''), 'ok', {
           label: t('service.undo'),
           onClick: () => {
             const cur = bottlesRef.current.find((b) => b.id === res!.bottle.id) ?? res!.bottle;

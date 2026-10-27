@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { BellRing, FilePlus2, FileText, Trash2 } from 'lucide-react';
+import { BellRing, FilePlus2, FileText, Trash2, Zap } from 'lucide-react';
 import { useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
 import { dateFr, eur, today } from '@/lib/utils';
 import { norm } from '@/lib/wine';
 import { Button, EmptyState, PageHeader, SearchInput, Segmented, Spinner, Stat, Table, Td, Th } from '@/ui';
 import { balanceDue, salesKpis } from './calc';
+import { QuickSaleModal } from './QuickSaleModal';
 import RemindersPanel, { reminderCount } from './RemindersPanel';
 import StatusBadge from './StatusBadge';
 import { isLocked, useDocActions } from './useDocActions';
@@ -19,6 +20,7 @@ export default function DocumentsPage() {
   const { docs, payments, loading } = useSales();
   const actions = useDocActions();
   const navigate = useNavigate();
+  const [quickSaleOpen, setQuickSaleOpen] = useState(false);
   const [sp, setSp] = useSearchParams();
   const view = sp.get('view');
   const type: DocType | 'all' | 'remind' = view === 'quote' || view === 'invoice' || view === 'credit_note' || view === 'remind' ? view : 'all';
@@ -40,6 +42,9 @@ export default function DocumentsPage() {
         subtitle={t('negoce.documentsSubtitle')}
         actions={
           <>
+            <Button variant="secondary" icon={<Zap className="size-4 text-accent" />} onClick={() => setQuickSaleOpen(true)}>
+              Vente comptoir
+            </Button>
             <Button icon={<FileText className="size-4" />} onClick={() => navigate('/negoce/edit/new?type=quote')}>
               {t('negoce.newQuote')}
             </Button>
@@ -135,6 +140,7 @@ export default function DocumentsPage() {
           </tbody>
         </Table>
       )}
+      <QuickSaleModal open={quickSaleOpen} onClose={() => setQuickSaleOpen(false)} />
     </>
   );
 }

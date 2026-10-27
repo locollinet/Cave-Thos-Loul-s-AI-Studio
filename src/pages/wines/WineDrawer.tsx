@@ -8,34 +8,40 @@ import { Badge, Button, Modal, Tabs, useToast } from '@/ui';
 import { formatLabel } from '@/lib/wine';
 import { dateFr, eur, pct } from '@/lib/utils';
 import { MovementModal } from '../stock/MovementModal';
+import { QuickBinModal } from '../stock/QuickBinPopover';
 import { WineFormModal } from './WineForm';
 import { TechSheetModal } from '@/modules/carte/TechSheetModal';
 import { WinePhoto } from '@/components/WinePhoto';
 import { RareBottleModal } from '@/components/bottles/RareBottleModal';
 import { buildMovementOps } from '@/data/stock';
+import type { Site } from '@/types';
 
-function Row({ k, v }: { k: string; v?: string | number | null }) {
+function Row({ k, v }: { k: string; v?: React.ReactNode }) {
   if (v === undefined || v === null || v === '') return null;
   return (
-    <div className="flex justify-between gap-4 border-b border-border/50 py-1.5 text-sm">
+    <div className="flex justify-between items-center gap-4 border-b border-border/50 py-1.5 text-sm">
       <span className="text-muted">{k}</span>
       <span className="text-right font-medium">{v}</span>
     </div>
   );
 }
 
-export function WineDrawer({ wine, onClose }: { wine: Wine; onClose: () => void }) {
+export function WineDrawer({ wine: wineProp, wineId, onClose }: { wine?: Wine; wineId?: string; onClose: () => void }) {
   const { t, intl } = useI18n();
   const { toast, confirm } = useToast();
   const { user } = useAuth();
-  const { stock, sites, commit, path, can, orgId } = useOrg();
+  const { wines, stock, sites, commit, path, can, orgId } = useOrg();
+  const wine = wineProp ?? wines.find((w) => w.id === wineId);
   const { rows: movements } = useCollection<Movement>('movements', { orderBy: ['createdAt', 'desc'], limit: 500 });
   const { rows: allBottles } = useCollection<RareBottle>('bottles');
   const [edit, setEdit] = useState(false);
   const [sheet, setSheet] = useState(false);
   const [addBottle, setAddBottle] = useState(false);
-  const [tab, setTab] = useState<'wine' | 'management' | 'bottles'>(wine.isExceptional ? 'bottles' : 'wine');
+  const [tab, setTab] = useState<'wine' | 'management' | 'bottles'>(wine?.isExceptional ? 'bottles' : 'wine');
   const [move, setMove] = useState<'in' | 'out' | null>(null);
+  const [quickBinSite, setQuickBinSite] = useState<Site | null>(null);
+
+  if (!wine) return null;
 
   const levels = useMemo(() => stock.filter((l) => l.wineId === wine.id), [stock, wine.id]);
   const bottles = useMemo(() => allBottles.filter((b) => b.wineId === wine.id), [allBottles, wine.id]);
@@ -319,7 +325,29 @@ export function WineDrawer({ wine, onClose }: { wine: Wine; onClose: () => void 
             <h3 className="mb-1 text-sm font-semibold">{t('wines.stockBySite')}</h3>
             {sites.map((s) => {
               const l = levels.find((x) => x.siteId === s.id);
-              return <Row key={s.id} k={s.name} v={`${l?.qty ?? 0}${l?.bin ? ` · ${l.bin}` : ''}`} />;
+              return (
+                <Row
+                  key={s.id}
+                  k={s.name}
+                  v={
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono">{l?.qty ?? 0}</span>
+                      <button
+                        type="button"
+                        onClick={() => setQuickBinSite(s)}
+                        className="text-xs font-mono text-muted hover:text-brand px-1.5 py-0.5 rounded hover:bg-surface-2 transition cursor-pointer"
+                        title="Modifier l'emplacement dans ce site"
+                      >
+                        {l?.bin ? (
+                          <span className="text-ink font-semibold">📍 {l.bin}</span>
+                        ) : (
+                          <span className="italic text-muted/60">+ Emplacement</span>
+                        )}
+                      </button>
+                    </div>
+                  }
+                />
+              );
             })}
           </section>
 
@@ -368,6 +396,14 @@ export function WineDrawer({ wine, onClose }: { wine: Wine; onClose: () => void 
       {sheet && <TechSheetModal wine={wine} onClose={() => setSheet(false)} />}
       {move && <MovementModal initialType={move} initialWine={wine} onClose={() => setMove(null)} />}
       {addBottle && <RareBottleModal wine={wine} onClose={() => setAddBottle(false)} />}
+      {quickBinSite && (
+        <QuickBinModal
+          wine={wine}
+          site={quickBinSite}
+          level={levels.find((x) => x.siteId === quickBinSite.id)}
+          onClose={() => setQuickBinSite(null)}
+        />
+      )}
     </>
   );
 }

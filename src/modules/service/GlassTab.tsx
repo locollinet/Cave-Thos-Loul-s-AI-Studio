@@ -90,10 +90,22 @@ export function GlassTab({ siteId, bottles, now, actions }: { siteId: string; bo
                     <div className={cx('tabular font-display text-2xl leading-none', n < 1 && 'text-bad')}>{n}</div>
                     <div className="text-[11px] text-muted">{t('service.inStock')}</div>
                   </div>
-                  <Button variant="primary" size="lg" className="min-h-12 min-w-28" disabled={n < 1} onClick={() => actions.openBottle(w)}>
-                    {t('service.open')}
-                    <span className="sr-only"> — {w.producer} {w.name} {w.vintage}</span>
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <Button variant="primary" size="lg" className="min-h-12 min-w-20" disabled={n < 1} onClick={() => actions.openBottle(w, undefined, 'standard')}>
+                      {t('service.open')}
+                      <span className="sr-only"> — {w.producer} {w.name} {w.vintage}</span>
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      size="lg"
+                      className="min-h-12 px-2.5 text-xs font-semibold text-accent hover:border-accent"
+                      disabled={n < 1}
+                      title="Ouvrir sous azote / Coravin (conservation 28 jours)"
+                      onClick={() => actions.openBottle(w, undefined, 'coravin')}
+                    >
+                      ⚡ Coravin
+                    </Button>
+                  </div>
                 </li>
               );
             })}

@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Banknote, FilePlus2, FileText, Pencil, Printer, Send } from 'lucide-react';
+import { ArrowLeft, Banknote, FilePlus2, FileText, Pencil, Printer, Send, Truck } from 'lucide-react';
 import { useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
 import { dateFr, eur } from '@/lib/utils';
-import { Badge, Button, Card, EmptyState, PageHeader, Spinner } from '@/ui';
+import { Badge, Button, Card, EmptyState, PageHeader, Spinner, cx } from '@/ui';
 import { balanceDue, paidAmount } from './calc';
 import DocumentSheet from './DocumentSheet';
 import PaymentModal from './PaymentModal';
@@ -20,6 +20,7 @@ export default function DocumentView() {
   const actions = useDocActions();
   const navigate = useNavigate();
   const [paying, setPaying] = useState(false);
+  const [viewMode, setViewMode] = useState<'doc' | 'bl'>('doc');
   const doc = docs.find((d) => d.id === id);
 
   if (loading) return <Spinner className="mx-auto mt-20" />;
@@ -104,9 +105,44 @@ export default function DocumentView() {
           </Card>
         )}
         {isLocked(doc) && doc.type !== 'quote' && <Badge tone="info" className="mb-3">{t('negoce.locked')}</Badge>}
+
+        {/* Sélecteur de vue : Facture / Devis vs Bon de Livraison (BL) */}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setViewMode('doc')}
+              className={cx(
+                'flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition cursor-pointer',
+                viewMode === 'doc'
+                  ? 'bg-brand text-brand-fg shadow-xs font-semibold'
+                  : 'border border-border bg-surface text-muted hover:border-brand/40 hover:text-ink',
+              )}
+            >
+              <FileText className="size-3.5" />
+              <span>{t(`negoce.doc.${doc.type}`)}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('bl')}
+              className={cx(
+                'flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-medium transition cursor-pointer',
+                viewMode === 'bl'
+                  ? 'bg-brand text-brand-fg shadow-xs font-semibold'
+                  : 'border border-border bg-surface text-muted hover:border-brand/40 hover:text-ink',
+              )}
+            >
+              <Truck className="size-3.5" />
+              <span>Bon de Livraison (BL &amp; Expédition)</span>
+            </button>
+          </div>
+          <span className="text-xs text-muted hidden sm:inline">
+            {viewMode === 'bl' ? 'Logistique : détail des colis & signature sans marges' : 'Comptabilité : montants HT, TVA et conditions'}
+          </span>
+        </div>
       </div>
 
-      <DocumentSheet doc={doc} org={org} relatedNumber={related?.number} paid={paid} />
+      <DocumentSheet doc={doc} org={org} relatedNumber={related?.number} paid={paid} variant={viewMode === 'bl' ? 'bl' : 'document'} />
       <PaymentModal invoice={paying ? doc : null} balance={balance} onClose={() => setPaying(false)} />
     </>
   );

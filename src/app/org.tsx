@@ -70,6 +70,8 @@ interface OrgCtx {
   setActiveSiteId: (id: string) => void;
   orgs: { id: string; name: string }[];
   switchOrg: (id: string) => Promise<void>;
+  overrideRole?: Role | null;
+  setOverrideRole: (role: Role | null) => void;
 }
 
 const Ctx = createContext<OrgCtx | null>(null);
@@ -242,6 +244,25 @@ export function OrgProvider({ children, fallback }: { children: ReactNode; fallb
     [store, user, userDoc],
   );
 
+  const [overrideRole, setOverrideRoleState] = useState<Role | null>(() => {
+    try {
+      const s = sessionStorage.getItem('lt-role-override');
+      return (s as Role) || null;
+    } catch {
+      return null;
+    }
+  });
+
+  const setOverrideRole = useCallback((r: Role | null) => {
+    try {
+      if (r) sessionStorage.setItem('lt-role-override', r);
+      else sessionStorage.removeItem('lt-role-override');
+    } catch {
+      /* ignore */
+    }
+    setOverrideRoleState(r);
+  }, []);
+
   const member = membersQ.rows.find((m) => m.uid === uidv);
   const status: Gate['status'] = error
     ? 'error'
@@ -253,13 +274,16 @@ export function OrgProvider({ children, fallback }: { children: ReactNode; fallb
 
   const gate: Gate = { status, error, createOrg, joinOrg };
 
+  const isDemoEnv = !!user?.demo || !!org?.isDemo || !!user?.isPlatformAdmin;
+  const effectiveRole: Role = (isDemoEnv && overrideRole) ? overrideRole : (member?.role ?? 'staff');
+
   const value = useMemo<OrgCtx | null>(() => {
     if (status !== 'ready' || !org || !orgId || !member) return null;
     return {
       store,
       orgId,
       org,
-      role: member.role,
+      role: effectiveRole,
       member,
       sites: sitesQ.rows.filter((s) => !s.isArchived).sort((a, b) => a.name.localeCompare(b.name)),
       wines: winesQ.rows,
@@ -268,7 +292,7 @@ export function OrgProvider({ children, fallback }: { children: ReactNode; fallb
       stock: stockQ.rows,
       members: membersQ.rows,
       hasModule: (m) => org.modules.includes(m),
-      can: (min) => atLeast(member.role, min),
+      can: (min) => atLeast(effectiveRole, min),
       path: (c, id) => `orgs/${orgId}/${c}${id ? `/${id}` : ''}`,
       commit: (ops) => store.commit(ops),
       updateOrg: (patch) => store.commit([{ op: 'set', path: `orgs/${orgId}`, data: patch as never, merge: true }]),
@@ -276,8 +300,10 @@ export function OrgProvider({ children, fallback }: { children: ReactNode; fallb
       setActiveSiteId,
       orgs: orgNames,
       switchOrg,
+      overrideRole,
+      setOverrideRole,
     };
-  }, [status, store, org, orgId, member, sitesQ.rows, winesQ.rows, producersQ.rows, partnersQ.rows, stockQ.rows, membersQ.rows, activeSiteId, setActiveSiteId, orgNames, switchOrg]);
+  }, [status, store, org, orgId, member, effectiveRole, overrideRole, setOverrideRole, sitesQ.rows, winesQ.rows, producersQ.rows, partnersQ.rows, stockQ.rows, membersQ.rows, activeSiteId, setActiveSiteId, orgNames, switchOrg]);
 
   return (
     <GateCtx.Provider value={gate}>
