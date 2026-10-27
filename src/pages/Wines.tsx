@@ -19,6 +19,7 @@ import { WineDrawer } from './wines/WineDrawer';
 import { ImportWinesModal } from './wines/ImportWines';
 import { DuplicatesPanel, findDuplicateGroups } from './wines/Duplicates';
 import { BatchTechSheetModal } from './wines/BatchTechSheetModal';
+import { AllocationsPanel } from '@/components/allocations/AllocationsPanel';
 
 export const COLOR_DOT: Record<WineColor, string> = {
   rouge: 'bg-[#7a1f2b]',
@@ -47,7 +48,7 @@ export default function WinesPage() {
   const navigate = useNavigate();
   const { wines, stock, activeSiteId, can, org, orgId, commit, path } = useOrg();
   const [params, setParams] = useSearchParams();
-  const [tab, setTab] = useState<'catalog' | 'duplicates' | 'archived'>('catalog');
+  const [tab, setTab] = useState<'catalog' | 'allocations' | 'duplicates' | 'archived'>('catalog');
   const [q, setQ] = useState('');
   const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
   const [group, setGroup] = useState<WineGroupBy>('terroir');
@@ -223,12 +224,15 @@ export default function WinesPage() {
         onChange={(v) => { setTab(v); clear(); }}
         tabs={[
           { value: 'catalog', label: t('wines.catalog') },
+          { value: 'allocations', label: 'Allocations vignerons' },
           { value: 'duplicates', label: t('wines.duplicates'), count: duplicateGroups.length },
           { value: 'archived', label: t('wines.archived') },
         ]}
       />
 
-      {tab === 'duplicates' ? (
+      {tab === 'allocations' ? (
+        <AllocationsPanel />
+      ) : tab === 'duplicates' ? (
         <DuplicatesPanel groups={duplicateGroups} />
       ) : (
         <>

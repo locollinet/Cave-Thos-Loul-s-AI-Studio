@@ -186,6 +186,9 @@ export function WineFormModal({ wine, onClose, onSaved }: { wine?: Wine; onClose
         <Field label={t('wines.alertThreshold')}>
           <NumberInput value={f.alertThreshold} onChange={(v) => set('alertThreshold', v ?? 0)} min={0} />
         </Field>
+        <Field label="Code Caisse / POS (PLU)" hint="Pour déstockage automatique caisse">
+          <Input value={f.posCode ?? ''} onChange={(e) => set('posCode', e.target.value)} placeholder="Ex: PLU-104" />
+        </Field>
         <Field label={t('wines.ean')}>
           <Input value={f.ean ?? ''} onChange={(e) => set('ean', e.target.value)} />
         </Field>
@@ -199,6 +202,7 @@ export function WineFormModal({ wine, onClose, onSaved }: { wine?: Wine; onClose
           <Textarea value={f.notes ?? ''} onChange={(e) => set('notes', e.target.value)} />
         </Field>
         <div className="sm:col-span-2 flex flex-wrap gap-6">
+          <Checkbox checked={!!f.isExceptional} onChange={(v) => set('isExceptional', v)} label="Flacon d'exception / Grand Cru (traçabilité unitaire)" />
           <Checkbox checked={!!f.hideFromMenu} onChange={(v) => set('hideFromMenu', v)} label={t('wines.hideFromMenu')} />
           <Checkbox checked={!!f.isPreSale} onChange={(v) => set('isPreSale', v)} label={t('wines.preSale')} />
           <Checkbox checked={!!f.byGlass?.enabled} onChange={(v) => set('byGlass', { glassCl: 12.5, ...f.byGlass, enabled: v })} label={t('wines.byGlass')} />

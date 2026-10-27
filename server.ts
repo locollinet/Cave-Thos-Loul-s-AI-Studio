@@ -7,6 +7,7 @@ import dotenv from 'dotenv';
 import { aiRouter } from './server/ai';
 import { labelRouter } from './server/aiLabel';
 import { translateRouter } from './server/aiTranslate';
+import { posRouter } from './server/pos';
 
 dotenv.config();
 
@@ -16,6 +17,7 @@ async function start() {
 
   app.use(express.json({ limit: '30mb' }));
   app.get('/api/health', (_req, res) => res.json({ status: 'ok', ai: !!process.env.GEMINI_API_KEY }));
+  app.use('/api/pos', posRouter);
   app.use('/api/ai/label', labelRouter);
   app.use('/api/ai/translate', translateRouter);
   app.use('/api/ai', aiRouter);

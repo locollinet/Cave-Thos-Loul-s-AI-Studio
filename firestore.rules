@@ -151,6 +151,18 @@ service cloud.firestore {
       match /openBottles/{id} {
         allow read, write: if isMember(orgId) && validId(id);
       }
+      // Cartographie des casiers et flacons d'exception
+      match /racks/{id} {
+        allow read: if isMember(orgId);
+        allow write: if isMember(orgId) && validId(id);
+      }
+      match /bottles/{id} {
+        allow read: if isMember(orgId);
+        allow write: if isMember(orgId) && validId(id);
+      }
+      match /allocations/{id} {
+        allow read, write: if isMember(orgId) && validId(id);
+      }
 
       // ---------------------------------------------------------------- lot 2 : carte & achats
       match /wineLists/{id} {

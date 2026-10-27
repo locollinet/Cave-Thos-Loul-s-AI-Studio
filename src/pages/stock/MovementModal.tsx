@@ -10,7 +10,7 @@ import { today } from '@/lib/utils';
 
 const REASONS: Record<MovementType, MovementReason[]> = {
   in: ['achat', 'retour', 'autre'],
-  out: ['vente', 'consommation', 'casse', 'degustation', 'offert', 'autre'],
+  out: ['vente', 'bouchonne', 'oxyde', 'degustation', 'offert', 'casse', 'consommation', 'autre'],
   transfer: ['transfert'],
   adjust: ['inventaire', 'casse', 'autre'],
 };
@@ -153,8 +153,8 @@ export function MovementModal({
               <NumberInput value={cost} onChange={setCost} step="0.01" min={0} />
             </Field>
           )}
-          {(type === 'in' || (type === 'out' && ['vente', 'offert'].includes(reason))) && (
-            <Field label={type === 'in' ? t('stock.supplier') : t('stock.customer')}>
+          {(type === 'in' || (type === 'out' && ['vente', 'offert', 'bouchonne'].includes(reason))) && (
+            <Field label={type === 'in' || reason === 'bouchonne' ? t('stock.supplier') : t('stock.customer')}>
               <Select value={partnerId} onChange={(e) => setPartnerId(e.target.value)}>
                 <option value="">—</option>
                 {suppliers.map((p) => (
@@ -166,6 +166,12 @@ export function MovementModal({
             </Field>
           )}
         </div>
+        {type === 'out' && reason === 'bouchonne' && (
+          <div className="rounded-xl border border-amber-600/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-200">
+            <p className="font-semibold">Procédure Litige Bouchon (TCA) :</p>
+            <p className="mt-0.5 opacity-90">Conservez le flacon avec son bouchon d’origine pour restitution au représentant du domaine et demande d’avoir fournisseur.</p>
+          </div>
+        )}
         <Field label={t('common.notes')}>
           <Input value={note} onChange={(e) => setNote(e.target.value)} />
         </Field>

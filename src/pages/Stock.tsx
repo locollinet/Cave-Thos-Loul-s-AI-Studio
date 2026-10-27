@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ArrowDownToLine, ArrowRightLeft, ArrowUpFromLine, Boxes, Download, SlidersHorizontal } from 'lucide-react';
+import { ArrowDownToLine, ArrowRightLeft, ArrowUpFromLine, Boxes, Download, ReceiptText, SlidersHorizontal } from 'lucide-react';
 import type { Movement, MovementType, Wine } from '@/types';
 import { useCollection, useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
@@ -14,6 +14,8 @@ import { COLOR_DOT } from './Wines';
 import { WineFilters } from '@/components/WineFilters';
 import { WineGroups } from '@/components/WineGroups';
 import { EMPTY_FILTERS, matchesWine, sortWines, type WineGroupBy, type WineSort } from '@/lib/wineFilters';
+import { CellarMap } from '@/components/cellar/CellarMap';
+import { PosReconciliationModal } from '@/components/pos/PosReconciliationModal';
 
 const MOVE_TONE: Record<MovementType, 'ok' | 'neutral' | 'info' | 'warn'> = { in: 'ok', out: 'neutral', transfer: 'info', adjust: 'warn' };
 const isMove = (v: string | null): v is MovementType => v === 'in' || v === 'out' || v === 'transfer' || v === 'adjust';
@@ -22,7 +24,8 @@ export default function StockPage() {
   const { t, intl } = useI18n();
   const { wines, stock, sites, activeSiteId, can, orgId } = useOrg();
   const [params, setParams] = useSearchParams();
-  const [tab, setTab] = useState<'levels' | 'journal'>('levels');
+  const [tab, setTab] = useState<'levels' | 'map' | 'journal'>('levels');
+  const [posModal, setPosModal] = useState(false);
   const [q, setQ] = useState('');
   const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
   const [group, setGroup] = useState<WineGroupBy>('terroir');
@@ -151,6 +154,9 @@ export default function StockPage() {
         subtitle={t('stock.subtitle')}
         actions={
           <div className="hidden flex-wrap gap-2 md:flex">
+            <Button size="sm" variant="secondary" icon={<ReceiptText className="size-4 text-brand" />} onClick={() => setPosModal(true)}>
+              Caisse POS (Z)
+            </Button>
             <Button size="sm" icon={<Download className="size-4" />} onClick={exportCsv}>{t('common.export')}</Button>
             <Button size="sm" icon={<ArrowDownToLine className="size-4" />} onClick={() => setModal('in')}>{t('stock.type.in')}</Button>
             <Button size="sm" icon={<ArrowUpFromLine className="size-4" />} onClick={() => setModal('out')}>{t('stock.type.out')}</Button>
@@ -159,8 +165,18 @@ export default function StockPage() {
           </div>
         }
       />
-      <Tabs value={tab} onChange={setTab} tabs={[{ value: 'levels', label: t('stock.levels') }, { value: 'journal', label: t('stock.journal'), count: journal.length }]} />
-      {tab === 'levels' ? (
+      <Tabs
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { value: 'levels', label: t('stock.levels') },
+          { value: 'map', label: 'Plan de cave (2D / 3D)' },
+          { value: 'journal', label: t('stock.journal'), count: journal.length },
+        ]}
+      />
+      {tab === 'map' ? (
+        <CellarMap onOpenWine={(id) => setOpenId(id)} />
+      ) : tab === 'levels' ? (
         <WineFilters
           wines={pool}
           value={filters}
@@ -174,7 +190,12 @@ export default function StockPage() {
           count={rows.length}
           qty={rows.reduce((sum, r) => sum + r.total, 0)}
           viewsKey={`${orgId}:stock`}
-          extra={<Button className="md:hidden" aria-label={t('common.export')} icon={<Download className="size-4" />} onClick={exportCsv} />}
+          extra={
+            <div className="flex gap-1 md:hidden">
+              <Button aria-label="Caisse POS" icon={<ReceiptText className="size-4" />} onClick={() => setPosModal(true)} />
+              <Button aria-label={t('common.export')} icon={<Download className="size-4" />} onClick={exportCsv} />
+            </div>
+          }
         />
       ) : (
         <div className="mb-4 space-y-2">
@@ -236,6 +257,7 @@ export default function StockPage() {
       )}
       {modal && <MovementModal initialType={modal} onClose={closeModal} />}
       {opened && <WineDrawer wine={opened} onClose={() => setOpenId(null)} />}
+      {posModal && <PosReconciliationModal onClose={() => setPosModal(false)} />}
     </div>
   );
 }

@@ -155,6 +155,7 @@ interface Props {
   picks?: Map<number, string>;
   className?: string;
   columns?: boolean;
+  bookMode?: boolean; // Format livre de cave : sommaire automatique, marges de reliure et sauts de page
   /** Ne pas redéfinir les variables du thème (déjà posées par un parent, ex. page publique). */
   inherit?: boolean;
   /** Langue du contenu (libellés standard, format des prix) ; par défaut celle de la carte. Le document doit déjà être localisé. */
@@ -162,7 +163,7 @@ interface Props {
 }
 
 /** Rendu d'une carte selon sa charte : aperçu, impression et page publique. */
-export function ListView({ doc, sections, picks, className = '', columns = true, header = true, inherit = false, lang }: Props) {
+export function ListView({ doc, sections, picks, className = '', columns = true, header = true, bookMode = false, inherit = false, lang }: Props) {
   const { locale } = useI18n();
   const contentLang: ContentLang = lang ?? (isContentLang(doc.language) ? doc.language : locale);
   const intl = LANG_INTL[contentLang];
@@ -171,11 +172,30 @@ export function ListView({ doc, sections, picks, className = '', columns = true,
   const data = sections ?? indexSections(doc.sections);
   const sectionRule = theme.ornament === 'none' ? 'none' : theme.ornament === 'dots' ? 'dots' : 'line';
   return (
-    <div lang={contentLang} className={`lt-sheet px-6 py-10 sm:px-12 sm:py-14 ${className}`} style={inherit ? body : themeVars(theme)}>
+    <div lang={contentLang} className={`lt-sheet ${bookMode ? 'book-mode' : ''} px-6 py-10 sm:px-12 sm:py-14 ${className}`} style={inherit ? body : themeVars(theme)}>
       {header && <SheetHeader doc={doc} theme={theme} />}
+
+      {/* Sommaire automatique pour le format Livre de Cave */}
+      {bookMode && data.length > 1 && (
+        <nav aria-label="Sommaire de la cave" className="mb-12 border-y border-amber-900/30 py-6 print:break-after-page">
+          <h4 style={{ ...head, color: 'var(--lt-accent)', letterSpacing: '0.24em', textTransform: 'uppercase', fontSize: '0.85rem', textAlign: 'center', marginBottom: '1rem' }}>
+            Sommaire de la Cave
+          </h4>
+          <div className="mx-auto max-w-md space-y-2 text-xs" style={body}>
+            {data.map((sec) => (
+              <div key={sec.title} className="flex items-baseline gap-2">
+                <span className="font-semibold text-ink">{sec.title}</span>
+                <span aria-hidden className="min-w-6 flex-1 border-b border-dotted" style={{ borderColor: 'var(--lt-rule)', transform: 'translateY(-0.3em)' }} />
+                <span style={figures} className="text-muted">{sec.items.length} {sec.items.length > 1 ? 'vins' : 'vin'}</span>
+              </div>
+            ))}
+          </div>
+        </nav>
+      )}
+
       <div className={`${header ? 'mt-10' : ''} ${columns ? 'lt-cols' : ''}`}>
         {data.map((sec) => (
-          <section key={sec.title} className="lt-section" style={{ marginBottom: DENSITY[theme.density].section }}>
+          <section key={sec.title} className={`lt-section ${bookMode ? 'book-section' : ''}`} style={{ marginBottom: DENSITY[theme.density].section }}>
             <div className="lt-head" style={{ textAlign: theme.align, marginBottom: '0.9rem' }}>
               <h3 style={{ ...head, ...CASE[theme.sectionCase], color: 'var(--lt-accent)' }}>{sec.title}</h3>
               {sectionRule !== 'none' && (
@@ -207,6 +227,8 @@ export const PRINT_CSS = `
   .print-area, .print-area * { visibility: visible !important; }
   .print-area { position: absolute !important; left: 0; top: 0; width: 100% !important; margin: 0 !important; box-shadow: none !important; border: 0 !important; border-radius: 0 !important; }
   .lt-sheet { -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 8mm !important; }
+  .lt-sheet.book-mode { padding: 12mm 16mm 12mm 24mm !important; }
+  .lt-sheet.book-mode .book-section { break-before: page !important; page-break-before: always !important; }
   .lt-cols { column-count: 2; column-gap: 12mm; }
   .lt-head { break-after: avoid; }
   .lt-item { break-inside: avoid; }

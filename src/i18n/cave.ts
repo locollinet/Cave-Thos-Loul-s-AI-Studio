@@ -26,6 +26,8 @@ export const cave: { fr: Record<string, string>; en: Record<string, string> } = 
     'reason.depot_vente': 'Dépôt-vente',
     'reason.retour': 'Retour',
     'reason.verre': 'Ouverture au verre',
+    'reason.bouchonne': 'Goût de bouchon (TCA / Litige domaine)',
+    'reason.oxyde': 'Oxydation prématurée / Coulure',
     'reason.autre': 'Autre',
 
     'role.owner': 'Propriétaire',
@@ -288,6 +290,8 @@ export const cave: { fr: Record<string, string>; en: Record<string, string> } = 
     'reason.depot_vente': 'Consignment',
     'reason.retour': 'Return',
     'reason.verre': 'Opened by the glass',
+    'reason.bouchonne': 'Corked bottle (TCA / Dispute)',
+    'reason.oxyde': 'Premature oxidation / Leakage',
     'reason.autre': 'Other',
 
     'role.owner': 'Owner',

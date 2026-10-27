@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
-import { ArrowDownToLine, ArrowUpFromLine, Archive, ArchiveRestore, Pencil, Grape, MapPin, Utensils } from 'lucide-react';
-import type { Movement, Wine } from '@/types';
+import { ArrowDownToLine, ArrowUpFromLine, Archive, ArchiveRestore, Pencil, Grape, MapPin, Plus, ShieldCheck, Sparkles, Utensils } from 'lucide-react';
+import type { Movement, RareBottle, Wine } from '@/types';
 import { useCollection, useOrg } from '@/app/org';
+import { useAuth } from '@/app/auth';
 import { useI18n } from '@/i18n';
 import { Badge, Button, Modal, Tabs, useToast } from '@/ui';
 import { formatLabel } from '@/lib/wine';
@@ -10,6 +11,8 @@ import { MovementModal } from '../stock/MovementModal';
 import { WineFormModal } from './WineForm';
 import { TechSheetModal } from '@/modules/carte/TechSheetModal';
 import { WinePhoto } from '@/components/WinePhoto';
+import { RareBottleModal } from '@/components/bottles/RareBottleModal';
+import { buildMovementOps } from '@/data/stock';
 
 function Row({ k, v }: { k: string; v?: string | number | null }) {
   if (v === undefined || v === null || v === '') return null;
@@ -24,18 +27,69 @@ function Row({ k, v }: { k: string; v?: string | number | null }) {
 export function WineDrawer({ wine, onClose }: { wine: Wine; onClose: () => void }) {
   const { t, intl } = useI18n();
   const { toast, confirm } = useToast();
-  const { stock, sites, commit, path, can } = useOrg();
+  const { user } = useAuth();
+  const { stock, sites, commit, path, can, orgId } = useOrg();
   const { rows: movements } = useCollection<Movement>('movements', { orderBy: ['createdAt', 'desc'], limit: 500 });
+  const { rows: allBottles } = useCollection<RareBottle>('bottles');
   const [edit, setEdit] = useState(false);
   const [sheet, setSheet] = useState(false);
-  const [tab, setTab] = useState<'wine' | 'management'>('wine');
+  const [addBottle, setAddBottle] = useState(false);
+  const [tab, setTab] = useState<'wine' | 'management' | 'bottles'>(wine.isExceptional ? 'bottles' : 'wine');
   const [move, setMove] = useState<'in' | 'out' | null>(null);
 
   const levels = useMemo(() => stock.filter((l) => l.wineId === wine.id), [stock, wine.id]);
+  const bottles = useMemo(() => allBottles.filter((b) => b.wineId === wine.id), [allBottles, wine.id]);
   const total = levels.reduce((a, l) => a + l.qty, 0);
   const history = useMemo(() => movements.filter((m) => m.wineId === wine.id).slice(0, 8), [movements, wine.id]);
   const margin = wine.buyPriceHT && wine.sellPriceHT ? ((wine.sellPriceHT - wine.buyPriceHT) / wine.sellPriceHT) * 100 : undefined;
   const ts = wine.technicalSheet;
+
+  const serveBottle = async (bottle: RareBottle) => {
+    if (!user) return;
+    const ok = await confirm({
+      title: 'Servir ce flacon',
+      message: `Confirmer le service du flacon n°${bottle.bottleNumber} ? La bouteille sera marquée comme servie et déstockée.`,
+      confirmLabel: 'Confirmer le service',
+    });
+    if (!ok) return;
+
+    const todayDate = new Date().toISOString().slice(0, 10);
+    const movOps = buildMovementOps(
+      orgId,
+      [
+        {
+          wine,
+          siteId: bottle.siteId,
+          type: 'out',
+          qty: 1,
+          reason: 'vente',
+          date: todayDate,
+          note: `Flacon d'exception n°${bottle.bottleNumber}`,
+        },
+      ],
+      { userId: user.uid, userName: user.name },
+      Date.now(),
+      stock,
+    );
+
+    const bottleOp = {
+      op: 'set' as const,
+      path: path('bottles', bottle.id),
+      data: {
+        ...bottle,
+        status: 'served',
+        servedAt: Date.now(),
+        servedBy: user.name,
+      },
+    };
+
+    try {
+      await commit([...movOps, bottleOp]);
+      toast(`Flacon n°${bottle.bottleNumber} servi avec succès`);
+    } catch {
+      toast('Erreur lors du déstockage du flacon', 'bad');
+    }
+  };
 
   const toggleArchive = async () => {
     if (!wine.isArchived && total > 0) {
@@ -93,8 +147,95 @@ export function WineDrawer({ wine, onClose }: { wine: Wine; onClose: () => void 
               </div>
             </div>
           </div>
-          <Tabs value={tab} onChange={setTab} tabs={[{ value: 'wine', label: t('discover.identity') }, { value: 'management', label: t('discover.management') }]} />
-          {tab === 'wine' ? <div className="space-y-7">
+          <Tabs<'wine' | 'management' | 'bottles'>
+            value={tab}
+            onChange={setTab}
+            tabs={[
+              { value: 'wine', label: t('discover.identity') },
+              { value: 'management', label: t('discover.management') },
+              ...(wine.isExceptional || bottles.length > 0
+                ? [{ value: 'bottles' as const, label: 'Flacons d\'exception', count: bottles.length }]
+                : []),
+            ]}
+          />
+          {tab === 'bottles' ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-sm flex items-center gap-1.5 text-amber-500">
+                    <Sparkles className="size-4" />
+                    Traçabilité des flacons numérotés
+                  </h3>
+                  <p className="text-xs text-muted">Bouteilles suivies individuellement avec état de conservation</p>
+                </div>
+                <Button size="sm" variant="secondary" icon={<Plus className="size-4" />} onClick={() => setAddBottle(true)}>
+                  Nouveau flacon
+                </Button>
+              </div>
+
+              {bottles.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-border p-8 text-center text-muted">
+                  <ShieldCheck className="mx-auto size-8 text-amber-500/60 mb-2" />
+                  <p className="text-sm font-medium text-ink">Aucun flacon individuel enregistré</p>
+                  <p className="text-xs mt-1">Enregistrez chaque bouteille avec son numéro unique et son niveau de liquide.</p>
+                  <Button size="sm" className="mt-4" icon={<Plus className="size-4" />} onClick={() => setAddBottle(true)}>
+                    Enregistrer une bouteille
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {bottles.map((b) => (
+                    <div
+                      key={b.id}
+                      className="rounded-xl border border-amber-900/30 bg-surface-2/40 p-4 shadow-sm space-y-2.5"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm font-bold text-amber-400 bg-amber-950/40 px-2 py-0.5 rounded border border-amber-600/30">
+                            N° {b.bottleNumber}
+                          </span>
+                          {b.cbo && <Badge tone="brand">CBO Scellée</Badge>}
+                          {b.bin && <Badge tone="info">Alvéole {b.bin}</Badge>}
+                        </div>
+                        <Badge tone={b.status === 'in_cellar' ? 'ok' : b.status === 'served' ? 'neutral' : 'bad'}>
+                          {b.status === 'in_cellar' ? 'En cave' : b.status === 'served' ? 'Servi' : 'Perte/Bouchon'}
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2 text-xs border-y border-border/40 py-2">
+                        <div>
+                          <span className="text-muted block text-[10px] uppercase">Niveau</span>
+                          <span className="font-medium text-ink capitalize">{b.conditionLevel.replace('_', ' ')}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted block text-[10px] uppercase">Étiquette</span>
+                          <span className="font-medium text-ink capitalize">{b.conditionLabel}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted block text-[10px] uppercase">Capsule</span>
+                          <span className="font-medium text-ink capitalize">{b.conditionCapsule}</span>
+                        </div>
+                      </div>
+
+                      {b.provenance && (
+                        <p className="text-xs text-muted">
+                          <span className="font-semibold text-ink">Provenance : </span>{b.provenance}
+                        </p>
+                      )}
+
+                      {b.status === 'in_cellar' && (
+                        <div className="pt-1 flex justify-end">
+                          <Button size="sm" variant="secondary" onClick={() => serveBottle(b)}>
+                            Servir ce flacon
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : tab === 'wine' ? <div className="space-y-7">
             <section>
               <h3 className="mb-4 flex items-center gap-2 font-display text-xl"><MapPin className="size-4 text-brand" />{t('discover.terroirTitle')}</h3>
               <Row k="Appellation" v={wine.appellation || ts?.aop} />
@@ -226,6 +367,7 @@ export function WineDrawer({ wine, onClose }: { wine: Wine; onClose: () => void 
       {edit && <WineFormModal wine={wine} onClose={() => setEdit(false)} />}
       {sheet && <TechSheetModal wine={wine} onClose={() => setSheet(false)} />}
       {move && <MovementModal initialType={move} initialWine={wine} onClose={() => setMove(null)} />}
+      {addBottle && <RareBottleModal wine={wine} onClose={() => setAddBottle(false)} />}
     </>
   );
 }

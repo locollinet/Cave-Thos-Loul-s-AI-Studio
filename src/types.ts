@@ -177,6 +177,8 @@ export interface Wine {
   technicalSheet?: TechnicalSheet;
   hideFromMenu?: boolean;
   isPreSale?: boolean;
+  isExceptional?: boolean; // Flacon d'exception / haute conservation (active la traçabilité unitaire)
+  posCode?: string; // Code PLU / Caisse enregistreuse (POS)
   isArchived?: boolean;
   canonicalKey: string;
   createdAt: number;
@@ -192,6 +194,70 @@ export interface StockLevel {
   updatedAt: number;
 }
 
+/* ------------------------------------------------------------------ Cartographie & Casiers de cave */
+
+export interface CellarRack {
+  id: string;
+  siteId: string;
+  name: string; // Ex: "Casier A — Bourgogne Rouges"
+  prefix: string; // Ex: "A", "B", "C"
+  rows: number; // Ex: 5 rangées
+  cols: number; // Ex: 6 colonnes
+  capacityPerSlot?: number; // Capacité standard par alvéole (défaut 1)
+  zone?: string; // Ex: "Cave voûtée", "Armoire salle", "Chambre froide"
+  temperatureC?: number; // Ex: 12.5
+  humidityPct?: number; // Ex: 75
+  createdAt: number;
+}
+
+/* ------------------------------------------------------------------ Flacons d'exception & Traçabilité unitaire */
+
+export type BottleConditionLevel = 'goulot' | 'bas_goulot' | 'haute_epaule' | 'mi_epaule';
+export type BottleConditionLabel = 'parfaite' | 'griffee' | 'tachee' | 'fanee';
+export type BottleConditionCapsule = 'integre' | 'ciree' | 'abimee';
+
+export interface RareBottle {
+  id: string;
+  wineId: string;
+  siteId: string;
+  bottleNumber: string; // Ex: "04821 / 5000" gravé sur l'étiquette
+  cbo?: boolean; // En Caisse Bois d'Origine cerclée
+  conditionLevel: BottleConditionLevel;
+  conditionLabel: BottleConditionLabel;
+  conditionCapsule: BottleConditionCapsule;
+  provenance?: string; // Ex: "Allocation Domaine 2021", "Enchères Baghera"
+  bin?: string; // Coordonnée casier (ex: "A3")
+  status: 'in_cellar' | 'served' | 'corked' | 'sold';
+  servedAt?: number;
+  servedBy?: string;
+  servedTable?: string;
+  servedNote?: string;
+  notes?: string;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+/* ------------------------------------------------------------------ Allocations Vignerons & Primeurs */
+
+export interface WineAllocation {
+  id: string;
+  producerId?: string;
+  producerName: string; // Ex: "Domaine de la Romanée-Conti"
+  cuveeName: string; // Ex: "Romanée-Conti Grand Cru"
+  vintage: string; // Ex: "2021"
+  formatCl?: number; // 75, 150...
+  campaignYear: number; // Année de campagne (ex: 2024)
+  quotaBottles: number; // Quota réservé par le vigneron
+  orderedBottles: number; // Nombre commandé
+  receivedBottles: number; // Nombre livré en cave
+  unitPriceHT?: number; // Prix d'achat HT domaine
+  status: 'pending' | 'confirmed' | 'delivered' | 'cancelled';
+  notes?: string;
+  deadlineDate?: string; // Date limite de confirmation d'allocation
+  createdAt: number;
+  updatedAt?: number;
+}
+
 export type MovementType = 'in' | 'out' | 'transfer' | 'adjust';
 export type MovementReason =
   | 'achat'
@@ -205,6 +271,8 @@ export type MovementReason =
   | 'depot_vente'
   | 'retour'
   | 'verre'
+  | 'bouchonne'
+  | 'oxyde'
   | 'autre';
 
 export interface Movement {

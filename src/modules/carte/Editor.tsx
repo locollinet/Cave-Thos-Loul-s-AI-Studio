@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, FileSpreadsheet, Printer } from 'lucide-react';
+import { ArrowLeft, BookOpen, FileSpreadsheet, Printer } from 'lucide-react';
 import { useCollection, useOrg } from '@/app/org';
 import { useT } from '@/i18n';
 import type { Movement } from '@/types';
@@ -55,6 +55,7 @@ function EditorInner({ initial }: { initial: WineList }) {
   const [save, setSave] = useState<SaveState>('idle');
   const [busy, setBusy] = useState(false);
   const [previewLang, setPreviewLang] = useState<ContentLang>(initial.language);
+  const [bookMode, setBookMode] = useState(false);
   const { rows: movements } = useCollection<Movement>('movements', { orderBy: ['createdAt', 'desc'], limit: 3000 });
 
   const sections = useMemo(() => buildListSections(draft, wines, stock, org), [draft, wines, stock, org]);
@@ -156,6 +157,15 @@ function EditorInner({ initial }: { initial: WineList }) {
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant={bookMode ? 'primary' : 'secondary'}
+            icon={<BookOpen className="size-4" />}
+            onClick={() => setBookMode(!bookMode)}
+            title="Livre de Cave (Sommaire & Marges de reliure cuir)"
+          >
+            {bookMode ? 'Livre de cave (Actif)' : 'Livre de cave'}
+          </Button>
           <Button size="sm" icon={<FileSpreadsheet className="size-4" />} onClick={exportCsv} disabled={!count}>
             CSV
           </Button>
@@ -237,7 +247,7 @@ function EditorInner({ initial }: { initial: WineList }) {
                 </Select>
               </div>
               <div className="print-area overflow-hidden rounded-xl border border-border shadow-sm">
-                <ListView doc={previewDoc} lang={shownLang} />
+                <ListView doc={previewDoc} lang={shownLang} bookMode={bookMode} />
               </div>
             </>
           )}

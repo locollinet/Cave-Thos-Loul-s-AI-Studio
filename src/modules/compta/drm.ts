@@ -31,7 +31,8 @@ export function classifyMovement(m: Pick<Movement, 'type' | 'reason'>, delta: nu
   if (m.type === 'in' && delta > 0) return { side: 'entries', key: m.reason === 'achat' ? 'achats' : m.reason === 'retour' ? 'retours' : 'autres' };
   if (m.type === 'out' && delta < 0) {
     if (m.reason === 'vente' || m.reason === 'depot_vente') return { side: 'exits', key: 'ventes' };
-    if (m.reason === 'consommation' || m.reason === 'casse' || m.reason === 'degustation') return { side: 'exits', key: m.reason };
+    if (m.reason === 'bouchonne' || m.reason === 'oxyde' || m.reason === 'casse') return { side: 'exits', key: 'casse' };
+    if (m.reason === 'consommation' || m.reason === 'degustation') return { side: 'exits', key: m.reason };
     if (m.reason === 'offert') return { side: 'exits', key: 'offerts' };
     return { side: 'exits', key: 'autres' };
   }
