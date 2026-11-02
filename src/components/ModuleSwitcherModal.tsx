@@ -314,8 +314,8 @@ export function ModuleSwitcherModal({ open, onClose }: { open: boolean; onClose:
           </div>
         </div>
 
-        {/* Section 3 : Jeu de données démo (si mode démo) */}
-        {(demo || org.isDemo) && (
+        {/* Section 3 : Jeu de données démo (démo locale uniquement : sur Firebase, on crée une démo neuve depuis la console) */}
+        {store.mode === 'local' && (demo || org.isDemo) && (
           <div className="rounded-xl border border-dashed border-border bg-surface-2/30 p-4">
             <div className="flex items-start justify-between gap-4">
               <div>

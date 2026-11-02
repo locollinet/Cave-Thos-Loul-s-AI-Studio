@@ -57,6 +57,8 @@ export function Layout() {
   const [palette, setPalette] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [modulesOpen, setModulesOpen] = useState(false);
+  // Modifier l'organisation (modules, profil) : direction uniquement ; libre en démo locale.
+  const canManageModules = can('manager') || !!user?.demo;
   const loc = useLocation();
   useAutoRepublish();
 
@@ -128,19 +130,21 @@ export function Layout() {
             </NavLink>
           ))}
         </nav>
-        <div className="pt-2 pb-1">
-          <button
-            type="button"
-            onClick={() => setModulesOpen(true)}
-            className="flex w-full items-center gap-2 rounded-lg border border-dashed border-border bg-surface-2/60 px-3 py-2 text-xs font-medium text-ink hover:border-brand/50 hover:bg-brand-soft/40 transition cursor-pointer"
-          >
-            <SlidersHorizontal className="size-3.5 text-brand shrink-0" />
-            <span className="flex-1 truncate text-left">Modules &amp; Profil</span>
-            <span className="rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-semibold text-brand">
-              {org.modules.length}/6
-            </span>
-          </button>
-        </div>
+        {canManageModules && (
+          <div className="pt-2 pb-1">
+            <button
+              type="button"
+              onClick={() => setModulesOpen(true)}
+              className="flex w-full items-center gap-2 rounded-lg border border-dashed border-border bg-surface-2/60 px-3 py-2 text-xs font-medium text-ink hover:border-brand/50 hover:bg-brand-soft/40 transition cursor-pointer"
+            >
+              <SlidersHorizontal className="size-3.5 text-brand shrink-0" />
+              <span className="flex-1 truncate text-left">Modules &amp; Profil</span>
+              <span className="rounded bg-brand/10 px-1.5 py-0.5 text-[10px] font-semibold text-brand">
+                {org.modules.length}/6
+              </span>
+            </button>
+          </div>
+        )}
         <div className="mt-2 border-t border-border pt-3">
           {orgs.length > 1 && (
             <select
@@ -179,7 +183,7 @@ export function Layout() {
               <span className="font-semibold">Démo</span>
               <button
                 type="button"
-                onClick={() => setModulesOpen(true)}
+                onClick={() => canManageModules && setModulesOpen(true)}
                 className="inline-flex items-center gap-1.5 rounded-full bg-accent/20 px-2.5 py-0.5 text-[11px] font-semibold text-accent hover:bg-accent/30 transition cursor-pointer"
               >
                 <SlidersHorizontal className="size-3" />
@@ -252,18 +256,20 @@ export function Layout() {
             </select>
           )}
           <div className="flex-1" />
-          <button
-            type="button"
-            onClick={() => setModulesOpen(true)}
-            title="Gérer les modules & profil métier"
-            className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-ink hover:border-brand/40 hover:bg-surface-2 transition cursor-pointer"
-          >
-            <SlidersHorizontal className="size-3.5 text-brand" />
-            <span className="hidden sm:inline">Modules</span>
-            <span className="rounded bg-brand-soft px-1.5 py-0.5 text-[10px] font-semibold text-brand">
-              {org.modules.length}/6
-            </span>
-          </button>
+          {canManageModules && (
+            <button
+              type="button"
+              onClick={() => setModulesOpen(true)}
+              title="Gérer les modules & profil métier"
+              className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-ink hover:border-brand/40 hover:bg-surface-2 transition cursor-pointer"
+            >
+              <SlidersHorizontal className="size-3.5 text-brand" />
+              <span className="hidden sm:inline">Modules</span>
+              <span className="rounded bg-brand-soft px-1.5 py-0.5 text-[10px] font-semibold text-brand">
+                {org.modules.length}/6
+              </span>
+            </button>
+          )}
           <button onClick={() => setPalette(true)} className="rounded-lg p-2 text-muted hover:bg-surface-2 md:hidden" aria-label="Rechercher">
             <Search className="size-5" />
           </button>
@@ -323,16 +329,18 @@ export function Layout() {
         </nav>
         <Modal open={moreOpen} onClose={() => setMoreOpen(false)} title={t('nav.more')} size="sm">
           <div className="space-y-1">
-            <button
-              onClick={() => {
-                setMoreOpen(false);
-                setModulesOpen(true);
-              }}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink hover:bg-surface-2"
-            >
-              <SlidersHorizontal className="size-4.5 text-brand" />
-              <span>Modules &amp; Profil ({org.modules.length}/6 activés)</span>
-            </button>
+            {canManageModules && (
+              <button
+                onClick={() => {
+                  setMoreOpen(false);
+                  setModulesOpen(true);
+                }}
+                className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-ink hover:bg-surface-2"
+              >
+                <SlidersHorizontal className="size-4.5 text-brand" />
+                <span>Modules &amp; Profil ({org.modules.length}/6 activés)</span>
+              </button>
+            )}
             {rest.map((n) => (
               <NavLink key={n.id} to={n.path} className={linkCls}>
                 <n.icon className="size-4.5" />
@@ -347,8 +355,8 @@ export function Layout() {
         </Modal>
       </div>
 
-      <CommandPalette open={palette} onClose={() => setPalette(false)} onOpenModules={() => setModulesOpen(true)} />
-      <ModuleSwitcherModal open={modulesOpen} onClose={() => setModulesOpen(false)} />
+      <CommandPalette open={palette} onClose={() => setPalette(false)} onOpenModules={canManageModules ? () => setModulesOpen(true) : undefined} />
+      {canManageModules && <ModuleSwitcherModal open={modulesOpen} onClose={() => setModulesOpen(false)} />}
     </div>
   );
 }
@@ -522,8 +530,10 @@ function CommandPalette({ open, onClose, onOpenModules }: { open: boolean; onClo
         run: () => nav(`/vins?open=${w.id}`),
         hay: norm(`${w.producer} ${w.name} ${w.vintage} ${w.region ?? ''} ${w.grapes ?? ''}`),
       }));
-    return [...actions, ...pages, ...ws];
-  }, [org.modules, role, wines, t, nav, hasModule]);
+    // Actions qui modifient l'organisation : seulement si l'utilisateur peut gérer les modules.
+    const orgActions = new Set(['a-modules', 'a-all-modules', 'a-preset-rest', 'a-preset-negoce']);
+    return [...actions.filter((a) => onOpenModules || !orgActions.has(a.id)), ...pages, ...ws];
+  }, [org.modules, role, wines, t, nav, hasModule, onOpenModules]);
 
   const results = useMemo(() => {
     const terms = norm(q).split(' ').filter(Boolean);

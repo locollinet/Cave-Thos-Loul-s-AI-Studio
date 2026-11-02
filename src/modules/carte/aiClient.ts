@@ -12,11 +12,13 @@ const MAX_ITEMS = 150;
 
 type SommelierContext = 'guest' | 'pro';
 
-/** Conseil du sommelier ; côté public, appel sans jeton (la route applique son propre quota). */
-export async function askSommelier(items: PublicItem[], question: string, language: Locale, context: SommelierContext): Promise<SommelierAnswer> {
+/** Conseil du sommelier ; côté public, appel sans jeton rattaché à la carte publiée (quota par carte). */
+export async function askSommelier(items: PublicItem[], question: string, language: Locale, context: SommelierContext, publicId?: string): Promise<SommelierAnswer> {
   const body = { items: items.slice(0, MAX_ITEMS), question, language, context };
   if (context === 'pro') return apiPost<SommelierAnswer>('/api/ai/sommelier', body);
-  const r = await fetch('/api/ai/sommelier', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (publicId) headers['X-Public-List-Id'] = publicId;
+  const r = await fetch('/api/ai/sommelier', { method: 'POST', headers, body: JSON.stringify(body) });
   const j = (await r.json().catch(() => ({}))) as Partial<SommelierAnswer> & { error?: string };
   if (r.status === 429) throw new AiQuotaError(j.error);
   if (!r.ok) throw new Error(j.error ?? `Erreur ${r.status}`);

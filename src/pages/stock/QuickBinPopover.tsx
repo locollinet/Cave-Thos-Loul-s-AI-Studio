@@ -5,6 +5,7 @@ import { useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
 import { Button, Input, Modal, Select, useToast } from '@/ui';
 import { stockId } from '@/data/stock';
+import { DELETE_FIELD } from '@/data/sentinels';
 import { generateRackSlots, matchSlotToStock } from '@/lib/cellar';
 import { wineLabel } from '@/lib/wine';
 
@@ -50,21 +51,11 @@ export function QuickBinModal({
     try {
       const sid = stockId(wine.id, site.id);
       const cleanBin = binToSave.trim();
-      await commit([
-        {
-          op: 'set',
-          path: path('stock', sid),
-          data: {
-            id: sid,
-            wineId: wine.id,
-            siteId: site.id,
-            qty: level?.qty ?? 0,
-            bin: cleanBin || undefined,
-            updatedAt: Date.now(),
-          },
-          merge: true,
-        },
-      ]);
+      // Ne touche jamais à la quantité d'une ligne existante (un mouvement concurrent l'aurait écrasée).
+      const data = level
+        ? { bin: cleanBin || DELETE_FIELD, updatedAt: Date.now() }
+        : { id: sid, wineId: wine.id, siteId: site.id, qty: 0, bin: cleanBin, updatedAt: Date.now() };
+      await commit([{ op: 'set', path: path('stock', sid), data, merge: true }]);
       toast(t('common.saved'));
       onClose();
     } catch (e) {

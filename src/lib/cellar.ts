@@ -516,6 +516,47 @@ export function buildRackMatrix(
   return matrix;
 }
 
+/**
+ * Vue de face (rang avant, base) d'un meuble du plan de cave, au format des vues 2D / 3D.
+ * Même occupation que le plan (bins unitaires puis emplacements de départ) : les deux vues ne divergent plus.
+ */
+export function buildLayoutMatrix(rack: CellarRack, siteStock: StockLevel[], wines: Wine[], rareBottles: RareBottle[] = []): CellarSlotCell[][] {
+  const occupancy = buildRackOccupancyMap(rack, siteStock, new Map(wines.map((w) => [w.id, w])));
+  const bottlesByBin = new Map<string, RareBottle[]>();
+  for (const b of rareBottles) {
+    if (!b.bin || b.status !== 'in_cellar') continue;
+    const key = normalizeBin(b.bin);
+    bottlesByBin.set(key, [...(bottlesByBin.get(key) ?? []), b]);
+  }
+  const prefix = (rack.prefix || rack.name.slice(0, 3)).trim().toUpperCase();
+  const matrix: CellarSlotCell[][] = [];
+  for (let r = 0; r < rack.rows; r++) {
+    const row: CellarSlotCell[] = [];
+    for (let c = 0; c < rack.cols; c++) {
+      const code = buildSlotCode(rack, r + 1, c + 1, 'front', 1);
+      const key = normalizeBin(code);
+      const m = occupancy.get(key);
+      const bottles = bottlesByBin.get(key) ?? [];
+      const slotWines = m ? [{ wine: m.wine, qty: m.slotBottleCount, stockLevelId: m.stockLevel.id }] : [];
+      const totalQty = slotWines.reduce((sum, x) => sum + x.qty, 0);
+      row.push({
+        rackId: rack.id,
+        rackPrefix: prefix,
+        row: r,
+        col: c,
+        binCode: code,
+        label: formatSlotLabel(rack, r + 1, c + 1, 'front', 1),
+        wines: slotWines,
+        bottles,
+        totalQty,
+        isOccupied: totalQty > 0 || bottles.length > 0,
+      });
+    }
+    matrix.push(row);
+  }
+  return matrix;
+}
+
 /** Calcule les métriques globales d'un casier 2D */
 export function calculateRackStats(matrix: CellarSlotCell[][]): {
   totalSlots: number;

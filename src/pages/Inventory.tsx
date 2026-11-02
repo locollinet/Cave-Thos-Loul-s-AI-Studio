@@ -75,7 +75,7 @@ function CountScreen({ session, onBack }: { session: InventorySession; onBack: (
   const { t, intl } = useI18n();
   const { toast } = useToast();
   const { user } = useAuth();
-  const { orgId, wines, stock, sites, commit, path } = useOrg();
+  const { orgId, wines, stock, sites, commit, path, can } = useOrg();
   const [counts, setCounts] = useState<Record<string, number>>(session.counts);
   const [q, setQ] = useState('');
   const [reviewing, setReviewing] = useState(false);
@@ -266,7 +266,7 @@ function CountScreen({ session, onBack }: { session: InventorySession; onBack: (
           )
         }
       />
-      <Modal open={reviewing} onClose={() => setReviewing(false)} size="lg" title={t('inv.review')} footer={<><Button onClick={() => setReviewing(false)}>{t('common.back')}</Button><Button variant="primary" onClick={apply} disabled={!diffs.length}>{t('inv.apply', { n: diffs.length })}</Button></>}>
+      <Modal open={reviewing} onClose={() => setReviewing(false)} size="lg" title={t('inv.review')} footer={<><Button onClick={() => setReviewing(false)}>{t('common.back')}</Button>{can('sommelier') ? <Button variant="primary" onClick={apply} disabled={!diffs.length}>{t('inv.apply', { n: diffs.length })}</Button> : <span className="self-center text-xs text-muted">Validation des écarts par un responsable (sommelier ou direction).</span>}</>}>
         <label className="mb-3 flex items-center gap-2 text-sm">
           <input type="checkbox" checked={zeroUncounted} onChange={(e) => setZeroUncounted(e.target.checked)} />
           {t('inv.zeroUncounted')}

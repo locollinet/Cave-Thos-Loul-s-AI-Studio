@@ -149,7 +149,12 @@ describe('réception', () => {
     const { ops } = buildInvoiceOps(draft([l, { ...l, key: 'k2' }]), 'receive', ctx({ wines: [] }));
     expect(ops.filter((o) => o.path.startsWith('orgs/o1/wines/'))).toHaveLength(1);
     expect(ops.filter((o) => o.path.startsWith('orgs/o1/producers/'))).toHaveLength(1);
-    expect(ops.filter((o) => o.op === 'inc')).toHaveLength(2);
+    // Deux mouvements, une seule écriture de stock qui les cite tous les deux.
+    const movements = ops.filter((o) => o.path.startsWith('orgs/o1/movements/'));
+    const stock = ops.filter((o) => o.op === 'inc');
+    expect(movements).toHaveLength(2);
+    expect(stock).toHaveLength(1);
+    expect(stock[0]).toMatchObject({ by: l.qty * 2, data: { mv: movements.map((m) => m.path.split('/').pop()) } });
   });
 
   it('réutilise le fournisseur existant', () => {

@@ -40,7 +40,8 @@ export default function PublicOffer() {
         }
         setState({ status: 'missing' });
       },
-      () => setState({ status: 'error' }),
+      // Lecture refusée par les règles : l'offre a expiré (ou le lien a été retiré).
+      (e) => setState({ status: (e as { code?: string }).code === 'permission-denied' ? 'missing' : 'error' }),
     );
     return () => {
       unsub();

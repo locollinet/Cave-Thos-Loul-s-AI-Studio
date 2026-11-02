@@ -17,8 +17,9 @@ interface PosDepleteBody {
 }
 
 /**
- * Route Webhook universelle pour les caisses enregistreuses (POS) :
- * Déclenchée lors de la clôture d'une table ou d'un encaissement.
+ * Point d'entrée réservé aux connecteurs de caisse (POS). Aucun connecteur n'est activé par défaut :
+ * la requête est validée puis refusée en 501 pour ne jamais laisser croire à un déstockage.
+ * Le rapprochement se fait aujourd'hui par import du rapport de ventes (Stock › Ventes caisse).
  */
 posRouter.post('/deplete', (req: Request, res: Response) => {
   const body = req.body as PosDepleteBody;
@@ -38,17 +39,8 @@ posRouter.post('/deplete', (req: Request, res: Response) => {
     });
   }
 
-  // Journalise l'événement de déstockage POS
-  console.log(
-    `[POS:deplete] org=${body.orgId ?? 'default'} ticket=${body.ticketId ?? 'N/A'} table=${body.table ?? 'N/A'} articles=${validItems.length}`,
-  );
-
-  return res.json({
-    ok: true,
-    processedCount: validItems.length,
-    ticketId: body.ticketId ?? null,
-    table: body.table ?? null,
-    receivedAt: Date.now(),
-    message: `${validItems.length} article(s) reçus pour déstockage automatique.`,
+  return res.status(501).json({
+    error: 'Aucun connecteur de caisse n’est activé sur cette instance : aucun stock n’a été modifié. Importez le rapport de ventes depuis Stock › Ventes caisse.',
+    received: validItems.length,
   });
 });

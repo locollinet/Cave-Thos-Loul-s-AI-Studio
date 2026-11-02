@@ -123,6 +123,8 @@ export function toPublicOffer(offer: Offer, org: BrandOrg, orgId: string, wines:
   };
   if (offer.partnerName) doc.clientName = offer.partnerName;
   if (org.legal?.email) doc.contactEmail = org.legal.email;
+  // Fin de journée (UTC) de la date de validité : au-delà, les règles Firestore refusent la lecture du lien.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(offer.validUntil ?? '')) doc.expiresAt = Date.parse(`${offer.validUntil}T23:59:59Z`);
   const logo = publicLogo(theme, org);
   if (logo) doc.logoDataUrl = logo;
   return doc;

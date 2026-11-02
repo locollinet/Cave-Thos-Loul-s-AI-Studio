@@ -5,7 +5,7 @@ import { useAuth } from '@/app/auth';
 import { useT } from '@/i18n';
 import { Button, Field, Input, Modal, NumberInput, Segmented, Select, useToast } from '@/ui';
 import { WinePicker } from '@/components/WinePicker';
-import { buildMovementOps, qtyAt, stockId } from '@/data/stock';
+import { buildMovementOps, qtyAt, withStockFields } from '@/data/stock';
 import { today } from '@/lib/utils';
 
 const REASONS: Record<MovementType, MovementReason[]> = {
@@ -74,15 +74,7 @@ export function MovementModal({
         Date.now(),
         stock,
       );
-      if ((type === 'in' || type === 'adjust') && bin.trim()) {
-        ops.push({
-          op: 'set',
-          path: `orgs/${orgId}/stock/${stockId(wine.id, siteId)}`,
-          data: { bin: bin.trim() },
-          merge: true,
-        });
-      }
-      await commit(ops);
+      await commit((type === 'in' || type === 'adjust') && bin.trim() ? withStockFields(ops, orgId, wine.id, siteId, { bin: bin.trim() }) : ops);
       toast(t('stock.saved'));
       if (again) {
         setWine(undefined);

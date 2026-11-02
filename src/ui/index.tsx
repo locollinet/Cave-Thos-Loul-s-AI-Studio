@@ -248,6 +248,7 @@ export function Checkbox({ checked, onChange, label }: { checked: boolean; onCha
 /* ------------------------------------------------------------------ Modal / Drawer */
 
 const modalStack: string[] = [];
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export function Modal({
   open,
@@ -269,22 +270,49 @@ export function Modal({
   sheet?: boolean; // panneau montant depuis le bas sur mobile, tiroir latéral à partir de md
 }) {
   const titleId = useId();
+  const panel = useRef<HTMLDivElement>(null);
+  // onClose change souvent d'identité (fonction en ligne) : l'effet ne doit dépendre que de l'ouverture.
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
     if (!open) return;
     // Pile des fenêtres ouvertes : Échap ne ferme que celle du dessus.
     modalStack.push(titleId);
+    const opener = document.activeElement as HTMLElement | null;
+    // Focus initial dans la fenêtre (le champ autoFocus éventuel garde la main).
+    queueMicrotask(() => {
+      const p = panel.current;
+      if (p && !p.contains(document.activeElement)) (p.querySelector<HTMLElement>('[autofocus]') ?? p).focus();
+    });
     const h = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && modalStack[modalStack.length - 1] === titleId) {
+      if (modalStack[modalStack.length - 1] !== titleId) return;
+      if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose();
+        closeRef.current();
+        return;
+      }
+      // Tabulation circulaire : le focus reste dans la fenêtre du dessus.
+      if (e.key === 'Tab' && panel.current) {
+        const items = [...panel.current.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((el) => el.offsetParent !== null);
+        if (!items.length) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+        if (e.shiftKey && (document.activeElement === first || document.activeElement === panel.current)) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
       }
     };
     document.addEventListener('keydown', h);
     return () => {
       document.removeEventListener('keydown', h);
       modalStack.splice(modalStack.lastIndexOf(titleId), 1);
+      if (opener?.isConnected) opener.focus();
     };
-  }, [open, onClose, titleId]);
+  }, [open, titleId]);
   if (!open) return null;
   const w = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' }[size];
   const mdW = { sm: 'md:max-w-sm', md: 'md:max-w-lg', lg: 'md:max-w-2xl', xl: 'md:max-w-4xl' }[size];
@@ -292,8 +320,10 @@ export function Modal({
     <div className="no-print fixed inset-0 z-50 flex" role="dialog" aria-modal="true" aria-labelledby={title ? titleId : undefined}>
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" onClick={onClose} />
       <div
+        ref={panel}
+        tabIndex={-1}
         className={cx(
-          'animate-in relative flex max-h-full w-full flex-col bg-surface shadow-2xl',
+          'animate-in relative flex max-h-full w-full flex-col bg-surface shadow-2xl outline-none',
           sheet
             ? `mt-auto max-h-[88dvh] rounded-t-2xl border-t border-border md:ml-auto md:mt-0 md:h-full md:max-h-full md:rounded-none md:border-l md:border-t-0 ${mdW}`
             : side

@@ -23,6 +23,8 @@ interface AuthCtx {
   signUpEmail: (email: string, password: string, name: string) => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   sendEmailVerificationNotice: () => Promise<void>;
+  /** Recharge le compte (ex. après confirmation de l'email) ; renvoie vrai si l'email est confirmé. */
+  refreshUser: () => Promise<boolean>;
   signInDemo: () => void;
   signOut: () => Promise<void>;
 }
@@ -103,6 +105,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const current = getFirebaseAuth().currentUser;
     if (current) await sendEmailVerification(current);
   }, []);
+  const refreshUser = useCallback(async () => {
+    const current = firebaseReady ? getFirebaseAuth().currentUser : null;
+    if (!current) return !!user?.emailVerified;
+    await current.reload();
+    // Nouveau jeton : les règles Firestore lisent email_verified dans le jeton, pas dans le profil.
+    await current.getIdToken(true);
+    setUser((u) => (u ? { ...u, emailVerified: current.emailVerified } : u));
+    return current.emailVerified;
+  }, [firebaseReady, user?.emailVerified]);
   const signInDemo = useCallback(() => {
     localStorage.setItem(DEMO_KEY, '1');
     setUser(demoUser);
@@ -125,10 +136,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUpEmail,
       resetPassword,
       sendEmailVerificationNotice,
+      refreshUser,
       signInDemo,
       signOut,
     }),
-    [user, loading, firebaseReady, signInGoogle, signInEmail, signUpEmail, resetPassword, sendEmailVerificationNotice, signInDemo, signOut],
+    [user, loading, firebaseReady, signInGoogle, signInEmail, signUpEmail, resetPassword, sendEmailVerificationNotice, refreshUser, signInDemo, signOut],
   );
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

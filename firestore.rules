@@ -13,6 +13,9 @@ service cloud.firestore {
     function memberPath(orgId) {
       return /databases/$(database)/documents/orgs/$(orgId)/members/$(request.auth.uid);
     }
+    function orgPath(orgId) {
+      return /databases/$(database)/documents/orgs/$(orgId);
+    }
     function isMember(orgId) {
       return signedIn() && exists(memberPath(orgId));
     }
@@ -23,7 +26,7 @@ service cloud.firestore {
       return isMember(orgId) && role(orgId) in roles;
     }
     function orgDoc(orgId) {
-      return get(/databases/$(database)/documents/orgs/$(orgId));
+      return get(orgPath(orgId));
     }
     function userEmail() {
       return request.auth.token.email.lower();
@@ -31,8 +34,20 @@ service cloud.firestore {
     function isAdmin(orgId) {
       return hasRole(orgId, ['owner', 'manager']);
     }
+    // Back-office : accès aux prix d'achat, coûts et marges. Jamais l'équipe de salle (staff).
+    function isBackOffice(orgId) {
+      return hasRole(orgId, ['owner', 'manager', 'sommelier', 'accountant']);
+    }
     function isPlatformAdmin() {
       return signedIn() && request.auth.token.platformAdmin == true;
+    }
+    // Clés modifiées par l'écriture (toutes à la création).
+    function changedKeys() {
+      return resource == null ? request.resource.data.keys().toSet() : request.resource.data.diff(resource.data).affectedKeys();
+    }
+    // Un champ confidentiel peut être retiré d'un document partagé, jamais ajouté ni modifié.
+    function noPrivateFields(fields) {
+      return !changedKeys().intersection(request.resource.data.keys().toSet()).hasAny(fields);
     }
 
     // ------------------------------------------------------------------ utilisateurs
@@ -50,22 +65,38 @@ service cloud.firestore {
       allow create, update: if validId(publicId)
         && request.resource.data.publicId == publicId
         && hasRole(request.resource.data.orgId, ['owner', 'manager', 'sommelier'])
-        && request.resource.data.keys().hasOnly(['publicId', 'orgId', 'orgName', 'name', 'template', 'theme', 'language', 'updatedAt', 'sections', 'logoDataUrl', 'languages', 'translations'])
+        && request.resource.data.keys().hasOnly(['publicId', 'orgId', 'orgName', 'name', 'template', 'theme', 'language', 'updatedAt', 'sections', 'logoDataUrl', 'languages', 'translations', 'legal'])
         && (!('theme' in request.resource.data) || (request.resource.data.theme is map && request.resource.data.theme.size() <= 20))
         && (!('logoDataUrl' in request.resource.data) || (request.resource.data.logoDataUrl is string && request.resource.data.logoDataUrl.size() <= 400000))
         && request.resource.data.sections.size() <= 100;
       allow delete: if hasRole(resource.data.orgId, ['owner', 'manager', 'sommelier']);
     }
 
-    // Offres commerciales partagées par lien (instantané sans prix d'achat ni stock).
+    // Offres commerciales partagées par lien (instantané sans prix d'achat ni stock) ; illisibles une fois expirées.
     match /public_offers/{publicId} {
-      allow get: if validId(publicId);
+      allow get: if validId(publicId)
+        && (resource == null || !('expiresAt' in resource.data) || request.time.toMillis() <= resource.data.expiresAt);
       allow list: if false;
       allow create, update: if validId(publicId)
         && request.resource.data.publicId == publicId
         && hasRole(request.resource.data.orgId, ['owner', 'manager', 'accountant'])
-        && request.resource.data.items.size() <= 200;
+        && request.resource.data.keys().hasOnly(['publicId', 'orgId', 'orgName', 'number', 'title', 'intro', 'clientName', 'contactEmail', 'language', 'validUntil', 'vatRate', 'theme', 'logoDataUrl', 'items', 'updatedAt', 'expiresAt'])
+        && request.resource.data.items is list && request.resource.data.items.size() <= 200
+        && (!('expiresAt' in request.resource.data) || request.resource.data.expiresAt is int)
+        && (!('logoDataUrl' in request.resource.data) || (request.resource.data.logoDataUrl is string && request.resource.data.logoDataUrl.size() <= 400000));
       allow delete: if hasRole(resource.data.orgId, ['owner', 'manager', 'accountant']);
+    }
+
+    // Demandes RGPD de suppression d'organisation, traitées par l'équipe plateforme.
+    match /deletionRequests/{orgId} {
+      allow get: if hasRole(orgId, ['owner']) || isPlatformAdmin();
+      allow list: if isPlatformAdmin();
+      allow create: if hasRole(orgId, ['owner'])
+        && request.resource.data.orgId == orgId
+        && request.resource.data.requestedBy == request.auth.uid
+        && request.resource.data.status == 'pending';
+      allow update: if isPlatformAdmin();
+      allow delete: if false;
     }
 
     // ------------------------------------------------------------------ organisations
@@ -81,26 +112,39 @@ service cloud.firestore {
         && request.resource.data.id == orgId;
       allow delete: if isPlatformAdmin();
 
-      // Membres : le créateur s'inscrit propriétaire ; un invité rejoint avec le rôle de l'invitation.
+      // Membres : le créateur s'inscrit propriétaire dans le même lot que l'organisation ;
+      // un invité rejoint avec le jeton et le rôle de son invitation, depuis une adresse email vérifiée.
       match /members/{uid} {
         allow read: if isMember(orgId) || isPlatformAdmin();
         allow create: if signedIn() && uid == request.auth.uid && request.resource.data.uid == uid
           && (
-            (orgDoc(orgId).data.ownerUid == uid && request.resource.data.role == 'owner')
-            || (exists(/databases/$(database)/documents/orgs/$(orgId)/invites/$(userEmail()))
-                && get(/databases/$(database)/documents/orgs/$(orgId)/invites/$(userEmail())).data.role == request.resource.data.role
-                && (!('expiresAt' in get(/databases/$(database)/documents/orgs/$(orgId)/invites/$(userEmail())).data)
-                    || request.time.toMillis() <= get(/databases/$(database)/documents/orgs/$(orgId)/invites/$(userEmail())).data.expiresAt))
+            (getAfter(orgPath(orgId)).data.ownerUid == uid && request.resource.data.role == 'owner')
+            || validInvite(orgId)
           );
         allow update: if hasRole(orgId, ['owner']) && request.resource.data.uid == uid;
         allow delete: if hasRole(orgId, ['owner']) || (signedIn() && uid == request.auth.uid);
       }
 
+      function validInvite(orgId) {
+        let inv = get(/databases/$(database)/documents/orgs/$(orgId)/invites/$(userEmail())).data;
+        return request.auth.token.email_verified == true
+          && inv.role == request.resource.data.role
+          && inv.token == request.resource.data.inviteToken
+          && (!('expiresAt' in inv) || request.time.toMillis() <= inv.expiresAt);
+      }
+
       match /invites/{email} {
-        allow get: if hasRole(orgId, ['owner']) || (signedIn() && email == userEmail());
+        allow get: if hasRole(orgId, ['owner']) || isPlatformAdmin() || (signedIn() && email == userEmail());
         allow list: if hasRole(orgId, ['owner']);
-        allow create, update: if hasRole(orgId, ['owner']) && validId(email) && request.resource.data.role in ['manager', 'sommelier', 'accountant', 'staff'];
-        allow delete: if hasRole(orgId, ['owner']);
+        allow create, update: if validId(email)
+          && request.resource.data.token is string && request.resource.data.token.size() >= 16
+          && request.resource.data.expiresAt is int && request.resource.data.expiresAt <= request.time.toMillis() + 2592000000
+          && (
+            (hasRole(orgId, ['owner']) && request.resource.data.role in ['manager', 'sommelier', 'accountant', 'staff'])
+            || (isPlatformAdmin() && request.resource.data.role in ['owner', 'manager', 'sommelier', 'accountant', 'staff'])
+          );
+        // L'invité consomme son invitation dans le même lot que son inscription.
+        allow delete: if hasRole(orgId, ['owner']) || isPlatformAdmin() || (signedIn() && email == userEmail());
       }
 
       // ---------------------------------------------------------------- lot 1 : cave & stock
@@ -110,25 +154,76 @@ service cloud.firestore {
       }
       match /producers/{id} {
         allow read: if isMember(orgId);
-        allow write: if hasRole(orgId, ['owner', 'manager', 'sommelier', 'accountant']) && validId(id);
+        allow write: if isBackOffice(orgId) && validId(id);
       }
       match /wines/{id} {
         allow read: if isMember(orgId);
-        allow create, update: if hasRole(orgId, ['owner', 'manager', 'sommelier', 'accountant']) && validId(id)
+        allow create, update: if isBackOffice(orgId) && validId(id)
           && request.resource.data.name is string && request.resource.data.name.size() <= 300
-          && request.resource.data.producer is string && request.resource.data.producer.size() <= 300;
+          && request.resource.data.producer is string && request.resource.data.producer.size() <= 300
+          && noPrivateFields(['buyPriceHT', 'coefficient']);
         allow delete: if isAdmin(orgId);
+      }
+      // Prix d'achat et coefficients des vins (même identifiant que le vin).
+      match /wineCosts/{id} {
+        allow read: if isBackOffice(orgId);
+        allow write: if isBackOffice(orgId) && validId(id);
+      }
+
+      // Stock : le back-office écrit librement (quantité jamais négative). L'équipe de salle ne peut modifier une
+      // quantité qu'avec le mouvement qui la justifie, créé dans le même lot ; elle peut ranger (emplacements).
+      function stockShape() {
+        let d = request.resource.data;
+        return d.qty is number && d.qty >= 0 && d.qty <= 1000000 && d.wineId is string && d.siteId is string;
+      }
+      function binsOnly() {
+        return resource != null && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['bin', 'bins', 'updatedAt']);
+      }
+      function emptyLevel() {
+        return resource == null && request.resource.data.qty == 0;
+      }
+      function movementDelta(m, siteId) {
+        return (m.type == 'out' || (m.type == 'transfer' && m.siteId == siteId)) ? -m.qty : m.qty;
+      }
+      function pairedWithMovement(orgId) {
+        let d = request.resource.data;
+        let m = getAfter(/databases/$(database)/documents/orgs/$(orgId)/movements/$(d.mv[0])).data;
+        let before = resource == null ? 0 : resource.data.qty;
+        return d.mv is list && d.mv.size() == 1
+          && m.at == request.time
+          && m.userId == request.auth.uid
+          && m.wineId == d.wineId
+          && (m.siteId == d.siteId || (m.type == 'transfer' && m.toSiteId == d.siteId))
+          && d.qty - before == movementDelta(m, d.siteId)
+          && (resource == null || changedKeys().hasOnly(['qty', 'mv', 'updatedAt', 'bin', 'bins']));
       }
       match /stock/{id} {
         allow read: if isMember(orgId);
-        allow create, update: if isMember(orgId) && validId(id)
-          && request.resource.data.qty is number && request.resource.data.qty >= 0;
+        allow create, update: if validId(id) && stockShape()
+          && (isBackOffice(orgId) || (hasRole(orgId, ['staff']) && (binsOnly() || emptyLevel() || pairedWithMovement(orgId))));
         allow delete: if isAdmin(orgId);
       }
-      // Les mouvements sont immuables : création seule, signée par l'utilisateur.
+      // Les mouvements sont immuables : création seule, signée par l'utilisateur, sans coût (rangé à part).
       match /movements/{id} {
         allow read: if isMember(orgId);
-        allow create: if isMember(orgId) && validId(id) && request.resource.data.userId == request.auth.uid;
+        allow create: if isMember(orgId) && validId(id)
+          && request.resource.data.id == id
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.type in ['in', 'out', 'transfer', 'adjust']
+          && request.resource.data.reason in ['achat', 'vente', 'consommation', 'casse', 'degustation', 'offert', 'transfert', 'inventaire', 'depot_vente', 'retour', 'verre', 'bouchonne', 'oxyde', 'autre']
+          && request.resource.data.qty is number && request.resource.data.qty != 0
+          && request.resource.data.qty <= 100000 && request.resource.data.qty >= -100000
+          && (request.resource.data.type == 'adjust' || request.resource.data.qty > 0)
+          && request.resource.data.wineId is string && request.resource.data.siteId is string
+          && (request.resource.data.type != 'transfer' || (request.resource.data.toSiteId is string && request.resource.data.toSiteId != request.resource.data.siteId))
+          && (!('at' in request.resource.data) || request.resource.data.at == request.time)
+          && !('unitCostHT' in request.resource.data);
+        allow update, delete: if false;
+      }
+      // Coût unitaire des mouvements (même identifiant), immuable comme le mouvement.
+      match /movementCosts/{id} {
+        allow read: if isBackOffice(orgId);
+        allow create: if isBackOffice(orgId) && validId(id);
         allow update, delete: if false;
       }
       match /inventories/{id} {
@@ -149,7 +244,8 @@ service cloud.firestore {
       }
       // Vins au verre : bouteilles ouvertes et verres servis (toute l'équipe en service).
       match /openBottles/{id} {
-        allow read, write: if isMember(orgId) && validId(id);
+        allow read: if isMember(orgId);
+        allow write: if isMember(orgId) && validId(id);
       }
       // Cartographie des casiers et flacons d'exception
       match /racks/{id} {
@@ -160,8 +256,16 @@ service cloud.firestore {
         allow read: if isMember(orgId);
         allow write: if isMember(orgId) && validId(id);
       }
+      // Allocations : prix d'achat domaine, réservé à la direction et au sommelier.
       match /allocations/{id} {
-        allow read, write: if isMember(orgId) && validId(id);
+        allow read: if hasRole(orgId, ['owner', 'manager', 'sommelier']);
+        allow write: if hasRole(orgId, ['owner', 'manager', 'sommelier']) && validId(id);
+      }
+      // Imports de ventes de caisse : empreinte du fichier, pour refuser un second import du même rapport.
+      match /posImports/{id} {
+        allow read: if isMember(orgId);
+        allow create: if isBackOffice(orgId) && validId(id);
+        allow update, delete: if false;
       }
 
       // ---------------------------------------------------------------- lot 2 : carte & achats
@@ -170,13 +274,22 @@ service cloud.firestore {
         allow write: if hasRole(orgId, ['owner', 'manager', 'sommelier']) && validId(id);
       }
       match /purchaseInvoices/{id} {
-        allow read: if hasRole(orgId, ['owner', 'manager', 'sommelier', 'accountant']);
-        allow write: if hasRole(orgId, ['owner', 'manager', 'sommelier', 'accountant']) && validId(id);
+        allow read: if isBackOffice(orgId);
+        allow write: if isBackOffice(orgId) && validId(id);
       }
 
       // ---------------------------------------------------------------- lot 3 : négoce, compta, pilotage (données financières)
+      // Numérotation légale : un compteur ne fait qu'avancer d'un pas ; jamais remis à zéro ni supprimé.
+      match /counters/{key} {
+        allow read: if hasRole(orgId, ['owner', 'manager', 'accountant']);
+        allow create: if hasRole(orgId, ['owner', 'manager', 'accountant']) && validId(key)
+          && request.resource.data.value is int && request.resource.data.value >= 1;
+        allow update: if hasRole(orgId, ['owner', 'manager', 'accountant'])
+          && request.resource.data.value == resource.data.value + 1;
+        allow delete: if false;
+      }
       match /{coll}/{id} {
-        allow read, write: if coll in ['documents', 'payments', 'consignments', 'counters', 'expenses', 'expenseCategories', 'assets', 'drmReports', 'accountingSettings', 'offers']
+        allow read, write: if coll in ['documents', 'payments', 'consignments', 'expenses', 'expenseCategories', 'assets', 'drmReports', 'accountingSettings', 'offers']
           && hasRole(orgId, ['owner', 'manager', 'accountant']) && validId(id);
       }
     }

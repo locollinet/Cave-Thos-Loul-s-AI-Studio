@@ -47,7 +47,7 @@ export default function WinesPage() {
   const { t, intl } = useI18n();
   const { toast, confirm } = useToast();
   const navigate = useNavigate();
-  const { wines, stock, activeSiteId, can, org, orgId, commit, path } = useOrg();
+  const { wines, stock, activeSiteId, can, org, orgId, commit, path, canSeeCosts } = useOrg();
   const [params, setParams] = useSearchParams();
   const [tab, setTab] = useState<'catalog' | 'allocations' | 'duplicates' | 'archived'>('catalog');
   const [q, setQ] = useState('');
@@ -102,8 +102,8 @@ export default function WinesPage() {
     downloadBlob(
       'vins.csv',
       toCsv([
-        [t('wines.producer'), t('wines.cuvee'), t('wines.vintage'), t('wines.color'), t('wines.format'), t('wines.region'), t('discover.subRegion'), 'Appellation', t('common.qty'), t('wines.buyPrice'), t('wines.sellPrice')],
-        ...chosen.map((w) => [w.producer, w.name, w.vintage, t(`color.${w.color}`), w.formatCl, w.region ?? '', w.subRegion ?? '', w.appellation ?? '', qty.get(w.id) ?? 0, w.buyPriceHT ?? '', w.sellPriceHT ?? '']),
+        [t('wines.producer'), t('wines.cuvee'), t('wines.vintage'), t('wines.color'), t('wines.format'), t('wines.region'), t('discover.subRegion'), 'Appellation', t('common.qty'), ...(canSeeCosts ? [t('wines.buyPrice')] : []), t('wines.sellPrice')],
+        ...chosen.map((w) => [w.producer, w.name, w.vintage, t(`color.${w.color}`), w.formatCl, w.region ?? '', w.subRegion ?? '', w.appellation ?? '', qty.get(w.id) ?? 0, ...(canSeeCosts ? [w.buyPriceHT ?? ''] : []), w.sellPriceHT ?? '']),
       ]),
       'text/csv;charset=utf-8',
     );
@@ -118,7 +118,7 @@ export default function WinesPage() {
   const grouped = group !== 'none';
   const selCol = canBulk; // tableau (ordinateur) : cases toujours visibles
   const selMobile = canBulk && (selecting || selected.size > 0);
-  const columns = (selCol ? 1 : 0) + 1 + 1 + 1 + (grouped ? 0 : 2) + 2 + 1 + 1;
+  const columns = (selCol ? 1 : 0) + 1 + 1 + 1 + (grouped ? 0 : 2) + (canSeeCosts ? 2 : 1) + 1 + 1;
   const head = (
     <tr>
       {selCol && (
@@ -131,7 +131,7 @@ export default function WinesPage() {
       <SortTh active={grouped && sort === 'producer'} reverse={reverse} onClick={() => sortBy('producer')}>{t('wines.cuvee')}</SortTh>
       <SortTh active={sort === 'vintage'} reverse={reverse} onClick={() => sortBy('vintage')}>{t('wines.vintage')}</SortTh>
       {!grouped && <Th className="hidden xl:table-cell">{t('wines.region')}</Th>}
-      <SortTh right active={sort === 'price' && filters.price === 'buyPriceHT'} reverse={reverse} onClick={() => sortBy('price', 'buyPriceHT')}>{t('wines.buyPrice')}</SortTh>
+      {canSeeCosts && <SortTh right active={sort === 'price' && filters.price === 'buyPriceHT'} reverse={reverse} onClick={() => sortBy('price', 'buyPriceHT')}>{t('wines.buyPrice')}</SortTh>}
       <SortTh right active={sort === 'price' && filters.price === 'sellPriceHT'} reverse={reverse} onClick={() => sortBy('price', 'sellPriceHT')}>{t('wines.sellPrice')}</SortTh>
       <SortTh right active={sort === 'qty'} reverse={reverse} onClick={() => sortBy('qty')}>{t('common.qty')}</SortTh>
       <Th />
@@ -159,7 +159,7 @@ export default function WinesPage() {
         </Td>
         <Td className="tabular">{w.vintage}</Td>
         {!grouped && <Td className="hidden text-muted xl:table-cell">{w.region}</Td>}
-        <Td right className="text-muted">{w.buyPriceHT !== undefined ? eur(w.buyPriceHT, 'EUR', intl) : '—'}</Td>
+        {canSeeCosts && <Td right className="text-muted">{w.buyPriceHT !== undefined ? eur(w.buyPriceHT, 'EUR', intl) : '—'}</Td>}
         <Td right>{w.sellPriceHT !== undefined ? eur(w.sellPriceHT, 'EUR', intl) : '—'}</Td>
         <Td right className={cx('font-semibold', n <= 0 && 'text-bad')}>{n}</Td>
         <Td>
@@ -240,13 +240,13 @@ export default function WinesPage() {
         onChange={(v) => { setTab(v); clear(); }}
         tabs={[
           { value: 'catalog', label: t('wines.catalog') },
-          { value: 'allocations', label: 'Allocations vignerons' },
+          ...(can('sommelier') ? [{ value: 'allocations' as const, label: 'Allocations vignerons' }] : []),
           { value: 'duplicates', label: t('wines.duplicates'), count: duplicateGroups.length },
           { value: 'archived', label: t('wines.archived') },
         ]}
       />
 
-      {tab === 'allocations' ? (
+      {tab === 'allocations' && can('sommelier') ? (
         <AllocationsPanel />
       ) : tab === 'duplicates' ? (
         <DuplicatesPanel groups={duplicateGroups} />

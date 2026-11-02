@@ -1,4 +1,4 @@
-import type { Wine } from '@/types';
+import type { StockLevel, Wine } from '@/types';
 import type { Op } from '@/data/store';
 import { buildMovementOps, type Actor, type MovementInput } from '@/data/stock';
 import { round2, uid } from '@/lib/utils';
@@ -36,6 +36,8 @@ export interface ValidationInput {
   docs?: SaleDocument[];
   payments?: Payment[];
   skipCounterOp?: boolean;
+  /** Stock courant : refuse la validation si une sortie rendrait un stock négatif. */
+  stock?: StockLevel[];
 }
 
 /** Numérote, verrouille et génère les mouvements de stock dans un seul lot d'écritures. */
@@ -71,7 +73,7 @@ export function buildValidationOps(i: ValidationInput): { doc: SaleDocument; ops
       note: validated.number,
     });
   });
-  ops.push(...buildMovementOps(i.orgId, inputs, i.actor));
+  ops.push(...buildMovementOps(i.orgId, inputs, i.actor, undefined, i.stock));
   ops.push({ op: 'set', path: docPath(i.orgId, validated.id), data: clean(validated) as never });
 
   if (isCredit && i.related && i.related.status !== 'cancelled') {

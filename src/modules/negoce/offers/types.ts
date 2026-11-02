@@ -60,4 +60,6 @@ export interface PublicOfferDoc {
   logoDataUrl?: string;
   items: PublicOfferItem[];
   updatedAt: number;
+  /** Fin de validité (ms) : le lien devient illisible au-delà. */
+  expiresAt?: number;
 }

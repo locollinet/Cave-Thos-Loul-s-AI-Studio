@@ -44,9 +44,14 @@ export function downloadBlob(filename: string, content: BlobPart, type = 'text/p
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+const NUMERIC = /^[-+]?\d+([.,]\d+)?$/;
+
+/** Neutralise une cellule qu'un tableur exécuterait comme formule (=, +, -, @, tabulation, retour chariot). */
+export const safeCell = (s: string): string => (/^[=+\-@\t\r]/.test(s) && !NUMERIC.test(s) ? `'${s}` : s);
+
 export function toCsv(rows: (string | number | undefined | null)[][], sep = ';'): string {
   const esc = (v: string | number | undefined | null) => {
-    const s = v === undefined || v === null ? '' : String(v);
+    const s = v === undefined || v === null ? '' : typeof v === 'number' ? String(v) : safeCell(String(v));
     return /[";\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
   };
   return '\uFEFF' + rows.map((r) => r.map(esc).join(sep)).join('\r\n');

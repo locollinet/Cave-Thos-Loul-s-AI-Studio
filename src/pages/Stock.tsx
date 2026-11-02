@@ -24,7 +24,7 @@ const isMove = (v: string | null): v is MovementType => v === 'in' || v === 'out
 
 export default function StockPage() {
   const { t, intl } = useI18n();
-  const { wines, stock, sites, activeSiteId, can, orgId } = useOrg();
+  const { wines, stock, sites, activeSiteId, can, orgId, canSeeCosts } = useOrg();
   const [params, setParams] = useSearchParams();
   const urlTab = params.get('tab');
   const [tab, setTab] = useState<'levels' | 'cellar' | 'journal'>(() => (urlTab === 'cellar' || urlTab === 'journal' ? urlTab : 'levels'));
@@ -99,7 +99,7 @@ export default function StockPage() {
     if (tab === 'levels')
       downloadBlob(
         'stock.csv',
-        toCsv([[t('stock.wine'), ...visibleSites.map((s) => s.name), t('common.total'), t('stock.value')], ...rows.map((r) => [wineLabel(r.w), ...r.per, r.total, (r.total * (r.w.buyPriceHT ?? 0)).toFixed(2)])]),
+        toCsv([[t('stock.wine'), ...visibleSites.map((s) => s.name), t('common.total'), ...(canSeeCosts ? [t('stock.value')] : [])], ...rows.map((r) => [wineLabel(r.w), ...r.per, r.total, ...(canSeeCosts ? [(r.total * (r.w.buyPriceHT ?? 0)).toFixed(2)] : [])])]),
         'text/csv;charset=utf-8',
       );
     else
@@ -117,7 +117,7 @@ export default function StockPage() {
   const grouped = group !== 'none';
   const isSingleSite = visibleSites.length === 1;
   const singleSite = isSingleSite ? visibleSites[0] : null;
-  const columns = 2 + visibleSites.length + 3 + (isSingleSite ? 1 : 0);
+  const columns = 2 + visibleSites.length + (canSeeCosts ? 3 : 2) + (isSingleSite ? 1 : 0);
   const head = (
     <tr>
       <Th className="w-6" />
@@ -125,7 +125,7 @@ export default function StockPage() {
       {isSingleSite && <Th>{t('stock.bin')}</Th>}
       {visibleSites.map((s) => <Th key={s.id} right>{s.name}</Th>)}
       <SortTh right active={sort === 'qty'} reverse={reverse} onClick={() => sortBy('qty')}>{t('common.total')}</SortTh>
-      <Th right>{t('stock.value')}</Th>
+      {canSeeCosts && <Th right>{t('stock.value')}</Th>}
       <Th />
     </tr>
   );
@@ -168,7 +168,7 @@ export default function StockPage() {
         )}
         {r.per.map((n, i) => <Td key={i} right className={cx(n <= 0 && 'text-muted')}>{n}</Td>)}
         <Td right className="font-semibold">{r.total}</Td>
-        <Td right className="text-muted">{eur(r.total * (w.buyPriceHT ?? 0), 'EUR', intl)}</Td>
+        {canSeeCosts && <Td right className="text-muted">{eur(r.total * (w.buyPriceHT ?? 0), 'EUR', intl)}</Td>}
         <Td>{alerts(r.alerts)}</Td>
       </tr>
     );
@@ -202,9 +202,11 @@ export default function StockPage() {
         subtitle={t('stock.subtitle')}
         actions={
           <div className="hidden flex-wrap gap-2 md:flex">
-            <Button size="sm" variant="secondary" icon={<ReceiptText className="size-4 text-brand" />} onClick={() => setPosModal(true)}>
-              Caisse POS (Z)
-            </Button>
+            {canSeeCosts && (
+              <Button size="sm" variant="secondary" icon={<ReceiptText className="size-4 text-brand" />} onClick={() => setPosModal(true)}>
+                Ventes caisse
+              </Button>
+            )}
             <Button size="sm" icon={<Download className="size-4" />} onClick={exportCsv}>{t('common.export')}</Button>
             <Button size="sm" icon={<ArrowDownToLine className="size-4" />} onClick={() => setModal('in')}>{t('stock.type.in')}</Button>
             <Button size="sm" icon={<ArrowUpFromLine className="size-4" />} onClick={() => setModal('out')}>{t('stock.type.out')}</Button>
@@ -253,7 +255,7 @@ export default function StockPage() {
           {cellarMode === 'plan' ? (
             <CellarPlan />
           ) : (
-            <CellarMap onOpenWine={(id) => setOpenId(id)} />
+            <CellarMap onOpenWine={(id) => setOpenId(id)} onConfigure={() => setCellarMode('plan')} />
           )}
         </div>
       ) : tab === 'levels' ? (

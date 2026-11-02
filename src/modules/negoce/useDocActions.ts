@@ -25,25 +25,33 @@ export function useDocActions() {
       return false;
     }
     const shortages = stockShortages(doc.type === 'invoice' ? doc.lines : [], stock, doc.siteId);
-    const names = shortages.map((s) => {
-      const w = wines.find((x) => x.id === s.wineId);
-      return `${w ? wineLabel(w) : s.wineId} (${s.available}/${s.requested})`;
-    });
+    if (shortages.length) {
+      const names = shortages.map((s) => {
+        const w = wines.find((x) => x.id === s.wineId);
+        return `${w ? wineLabel(w) : s.wineId} (${s.available}/${s.requested})`;
+      });
+      toast(`${t('negoce.validate.shortage')} ${names.join(', ')}`, 'bad');
+      return false;
+    }
     const ok = await confirm({
       title: t(doc.type === 'invoice' ? 'negoce.validate.invoiceTitle' : 'negoce.validate.creditTitle'),
-      message: t('negoce.validate.msg') + (names.length ? `\n${t('negoce.validate.shortage')} ${names.join(', ')}` : ''),
+      message: t('negoce.validate.msg'),
       confirmLabel: t('negoce.validate'),
     });
     if (!ok) return false;
     try {
       const prefix = prefixFor(doc.type, org);
       const key = `${prefix}-${doc.date.slice(0, 4)}`;
-      const seq = await store.getNextSequence(orgId, key);
       const related = doc.relatedDocumentId ? docs.find((d) => d.id === doc.relatedDocumentId) : undefined;
-      const { doc: validated, ops } = buildValidationOps({ orgId, doc, prefix, seq, wines, actor, related, docs, payments, skipCounterOp: true });
-      await commit(ops);
-      toast(t('negoce.validated', { number: validated.number }));
-      navigate(`/negoce/view/${validated.id}`);
+      let validated: SaleDocument | undefined;
+      // Le numéro n'est consommé que si la facture et ses mouvements sont écrits : ni trou ni doublon.
+      await store.commitWithSequence(orgId, key, (seq) => {
+        const built = buildValidationOps({ orgId, doc, prefix, seq, wines, actor, related, docs, payments, skipCounterOp: true, stock });
+        validated = built.doc;
+        return built.ops;
+      });
+      toast(t('negoce.validated', { number: validated!.number }));
+      navigate(`/negoce/view/${validated!.id}`);
       return true;
     } catch (e) {
       fail(e);

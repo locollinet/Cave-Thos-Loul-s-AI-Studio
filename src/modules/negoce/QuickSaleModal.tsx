@@ -8,7 +8,6 @@ import { eur, round2, today, uid } from '@/lib/utils';
 import { norm, wineLabel } from '@/lib/wine';
 import { buildMovementOps } from '@/data/stock';
 import { computeTotals, formatNumber } from './calc';
-import { nextSeq } from './ops';
 import type { Payment, PaymentMethod, SaleDocument } from './types';
 import type { Wine } from '@/types';
 
@@ -96,8 +95,6 @@ export function QuickSaleModal({ open, onClose, onSuccess }: QuickSaleModalProps
       const prefix = org.invoicePrefix || 'FAC';
       const year = dateStr.slice(0, 4);
       const key = `${prefix}-${year}`;
-      const seq = await nextSeq(store.getDoc, org.id, key);
-      const docNumber = formatNumber(prefix, year, seq);
 
       const totals = computeTotals(
         [{ id: '1', qty, unitPriceHT, discountPct: 0, vatRate: defaultVatRate, description: wineLabel(selectedWine) }],
@@ -105,40 +102,6 @@ export function QuickSaleModal({ open, onClose, onSuccess }: QuickSaleModalProps
         defaultVatRate,
         0,
       );
-
-      const saleDoc: SaleDocument = {
-        id: docId,
-        type: 'invoice',
-        number: docNumber,
-        status: 'paid',
-        date: dateStr,
-        dueDate: dateStr,
-        partnerId: 'comptoir',
-        partnerName: partnerName.trim() || 'Client comptoir',
-        partnerType: 'particulier',
-        siteId,
-        lines: [
-          {
-            id: uid(),
-            wineId: selectedWine.id,
-            description: wineLabel(selectedWine),
-            qty,
-            unitPriceHT,
-            discountPct: 0,
-            vatRate: defaultVatRate,
-          },
-        ],
-        shippingHT: 0,
-        shippingVatRate: defaultVatRate,
-        discountPct: 0,
-        totalHT: totals.totalHT,
-        totalVAT: totals.totalVAT,
-        totalTTC: totals.totalTTC,
-        notes: 'Vente directe au comptoir — Paiement immédiat',
-        paymentTermsDays: 0,
-        createdAt: now,
-        createdBy: user?.name || member?.name || 'Comptoir',
-      };
 
       const payment: Payment = {
         id: paymentId,
@@ -154,35 +117,60 @@ export function QuickSaleModal({ open, onClose, onSuccess }: QuickSaleModalProps
         userName: user?.name || member?.name || 'Comptoir',
       };
 
-      // Mouvement de sortie de stock atomique
-      const moveOps = buildMovementOps(
-        org.id,
-        [
-          {
-            wine: selectedWine,
-            siteId,
-            type: 'out',
-            qty,
-            reason: 'vente',
-            note: `Vente comptoir ${docNumber}`,
-            date: dateStr,
-          },
-        ],
-        actor,
-        now,
-      );
+      // Numéro, facture, encaissement et sortie de stock dans une seule transaction : ni doublon ni trou.
+      let saleDoc: SaleDocument | undefined;
+      await store.commitWithSequence(org.id, key, (seq) => {
+        const docNumber = formatNumber(prefix, year, seq);
+        saleDoc = {
+          id: docId,
+          type: 'invoice',
+          number: docNumber,
+          status: 'paid',
+          date: dateStr,
+          dueDate: dateStr,
+          partnerId: 'comptoir',
+          partnerName: partnerName.trim() || 'Client comptoir',
+          partnerType: 'particulier',
+          siteId,
+          lines: [
+            {
+              id: uid(),
+              wineId: selectedWine.id,
+              description: wineLabel(selectedWine),
+              qty,
+              unitPriceHT,
+              discountPct: 0,
+              vatRate: defaultVatRate,
+            },
+          ],
+          shippingHT: 0,
+          shippingVatRate: defaultVatRate,
+          discountPct: 0,
+          totalHT: totals.totalHT,
+          totalVAT: totals.totalVAT,
+          totalTTC: totals.totalTTC,
+          notes: 'Vente directe au comptoir — Paiement immédiat',
+          paymentTermsDays: 0,
+          createdAt: now,
+          createdBy: user?.name || member?.name || 'Comptoir',
+        };
+        const moveOps = buildMovementOps(
+          org.id,
+          [{ wine: selectedWine, siteId, type: 'out', qty, reason: 'vente', note: `Vente comptoir ${docNumber}`, date: dateStr, documentId: docId }],
+          actor,
+          now,
+          stock,
+        );
+        return [
+          { op: 'set', path: `orgs/${org.id}/documents/${docId}`, data: saleDoc as never },
+          { op: 'set', path: `orgs/${org.id}/payments/${paymentId}`, data: payment as never },
+          ...moveOps,
+        ];
+      });
 
-      const ops = [
-        { op: 'set' as const, path: `orgs/${org.id}/documents/${docId}`, data: saleDoc as never },
-        { op: 'set' as const, path: `orgs/${org.id}/payments/${paymentId}`, data: payment as never },
-        { op: 'inc' as const, path: `orgs/${org.id}/counters/${key}`, field: 'value', by: 1, data: { id: key } },
-        ...moveOps,
-      ];
-
-      await commit(ops);
-      setCompletedSale({ doc: saleDoc, payment });
+      setCompletedSale({ doc: saleDoc!, payment });
       toast(`Vente comptoir enregistrée : ${eur(totals.totalTTC, org.currency, intl)} encaissés !`, 'ok');
-      onSuccess?.(saleDoc);
+      onSuccess?.(saleDoc!);
     } catch (err) {
       toast((err as Error).message, 'bad');
     } finally {
@@ -230,7 +218,7 @@ export function QuickSaleModal({ open, onClose, onSuccess }: QuickSaleModalProps
             <div className="text-center border-b border-dashed border-border pb-3">
               <div className="font-bold text-sm font-sans">{org.name}</div>
               <div className="text-muted">{org.legal.address || org.legal.city || 'Cave & Dégustation'}</div>
-              <div className="text-muted text-[10px]">SIRET : {org.legal.siret || 'FR48920192801'}</div>
+              {org.legal.siret && <div className="text-muted text-[10px]">SIRET : {org.legal.siret}</div>}
               <div className="mt-1 text-[11px] font-sans font-semibold">TICKET DE VENTE / REÇU COMPTOIR</div>
               <div className="text-muted text-[10px]">{today()} · N° {completedSale.doc.number}</div>
             </div>

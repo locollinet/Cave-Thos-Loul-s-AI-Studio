@@ -1,42 +1,42 @@
-import { useMemo, useState } from 'react';
-import { Box, Check, Droplets, Grid, Plus, Search, Sparkles, Thermometer, Wine as WineIcon } from 'lucide-react';
-import type { CellarRack, RareBottle, StockLevel, Wine } from '@/types';
+import { lazy, Suspense, useMemo, useState } from 'react';
+import { Box, Check, Droplets, Grid, Loader2, Search, Settings2, Thermometer, Wine as WineIcon } from 'lucide-react';
+import type { CellarRack, RareBottle } from '@/types';
 import { useCollection, useOrg } from '@/app/org';
-import {
-  buildRackMatrix,
-  calculateRackStats,
-  inferDefaultRacks,
-  type CellarSlotCell,
-} from '@/lib/cellar';
-import { Badge, Button, cx } from '@/ui';
+import { buildLayoutMatrix, buildRackMatrix, calculateRackStats, inferDefaultRacks } from '@/lib/cellar';
+import { Button, cx } from '@/ui';
 import { CellarRack2D } from './CellarRack2D';
-import { CellarScene3D } from './CellarScene3D';
-import { RackFormModal } from './RackFormModal';
+
+// Three.js n'est chargé qu'à l'ouverture de la vue 3D.
+const CellarScene3D = lazy(() => import('./CellarScene3D').then((m) => ({ default: m.CellarScene3D })));
 
 interface CellarMapProps {
   onOpenWine: (wineId: string) => void;
+  /** Ouvre la gestion des meubles (plan de cave), source unique des casiers. */
+  onConfigure?: () => void;
 }
 
-export function CellarMap({ onOpenWine }: CellarMapProps) {
+export function CellarMap({ onOpenWine, onConfigure }: CellarMapProps) {
   const { stock, wines, activeSiteId, sites } = useOrg();
-  const { rows: customRacks } = useCollection<CellarRack>('racks');
+  const { rows: legacyRacks } = useCollection<CellarRack>('racks');
   const { rows: rareBottles } = useCollection<RareBottle>('bottles');
 
   const [mode, setMode] = useState<'2d' | '3d'>('2d');
   const [selectedRackId, setSelectedRackId] = useState<string>('');
   const [search, setSearch] = useState('');
   const [emptyOnly, setEmptyOnly] = useState(false);
-  const [modalOpen, setModalOpen] = useState(false);
 
-  // Casiers disponibles : custom ou déduits du stock existant
+  // Meubles du plan de cave ; à défaut, anciens casiers ou casiers déduits des emplacements.
+  const layoutRacks = useMemo(
+    () => (activeSiteId === 'all' ? sites : sites.filter((s) => s.id === activeSiteId)).flatMap((s) => (s.layout?.racks ?? []).map((r) => ({ ...r, siteId: s.id }))),
+    [sites, activeSiteId],
+  );
   const racks = useMemo(() => {
-    if (customRacks.length > 0) {
-      return activeSiteId === 'all'
-        ? customRacks
-        : customRacks.filter((r) => r.siteId === activeSiteId || r.siteId === 'all');
+    if (layoutRacks.length) return layoutRacks;
+    if (legacyRacks.length > 0) {
+      return activeSiteId === 'all' ? legacyRacks : legacyRacks.filter((r) => r.siteId === activeSiteId || r.siteId === 'all');
     }
     return inferDefaultRacks(stock, activeSiteId);
-  }, [customRacks, stock, activeSiteId]);
+  }, [layoutRacks, legacyRacks, stock, activeSiteId]);
 
   const activeRack = useMemo(() => {
     return racks.find((r) => r.id === selectedRackId) ?? racks[0];
@@ -45,8 +45,9 @@ export function CellarMap({ onOpenWine }: CellarMapProps) {
   // Matrice des alvéoles pour le casier actif
   const matrix = useMemo(() => {
     if (!activeRack) return [];
+    if (layoutRacks.length) return buildLayoutMatrix(activeRack, stock.filter((s) => s.siteId === activeRack.siteId), wines, rareBottles);
     return buildRackMatrix(activeRack, stock, wines, rareBottles, activeSiteId);
-  }, [activeRack, stock, wines, rareBottles, activeSiteId]);
+  }, [activeRack, layoutRacks.length, stock, wines, rareBottles, activeSiteId]);
 
   const stats = useMemo(() => calculateRackStats(matrix), [matrix]);
 
@@ -86,14 +87,11 @@ export function CellarMap({ onOpenWine }: CellarMapProps) {
             </div>
           )}
 
-          <Button
-            size="sm"
-            variant="ghost"
-            icon={<Plus className="size-3.5" />}
-            onClick={() => setModalOpen(true)}
-          >
-            Nouveau casier
-          </Button>
+          {onConfigure && (
+            <Button size="sm" variant="ghost" icon={<Settings2 className="size-3.5" />} onClick={onConfigure}>
+              Configurer les meubles
+            </Button>
+          )}
         </div>
 
         {/* Contrôles de vue (2D / 3D) et recherche */}
@@ -196,12 +194,20 @@ export function CellarMap({ onOpenWine }: CellarMapProps) {
             onSelectWine={(w) => onOpenWine(w.id)}
           />
         ) : (
-          <CellarScene3D
-            matrix={matrix}
-            highlightQuery={search}
-            emptyOnly={emptyOnly}
-            onSelectWine={(w) => onOpenWine(w.id)}
-          />
+          <Suspense
+            fallback={
+              <div className="grid h-[480px] place-items-center rounded-2xl border border-border bg-surface-2/40 text-muted">
+                <Loader2 className="size-6 animate-spin" aria-label="Chargement de la vue 3D" />
+              </div>
+            }
+          >
+            <CellarScene3D
+              matrix={matrix}
+              highlightQuery={search}
+              emptyOnly={emptyOnly}
+              onSelectWine={(w) => onOpenWine(w.id)}
+            />
+          </Suspense>
         )
       ) : (
         <div className="rounded-2xl border border-dashed border-border p-12 text-center text-muted">
@@ -209,9 +215,6 @@ export function CellarMap({ onOpenWine }: CellarMapProps) {
           <p>Aucun casier configuré pour cet emplacement.</p>
         </div>
       )}
-
-      {/* Modal de création de casier */}
-      {modalOpen && <RackFormModal onClose={() => setModalOpen(false)} />}
     </div>
   );
 }

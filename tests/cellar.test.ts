@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { CellarRack, StockLevel, Wine } from '@/types';
 import {
+  buildLayoutMatrix,
   buildRackMatrix,
+  buildRackOccupancyMap,
   buildSlotCode,
   calculateRackStats,
   computeRackStats,
@@ -12,8 +14,23 @@ import {
   inferDefaultRacks,
   matchesSlotQuery,
   matchSlotToStock,
+  normalizeBin,
   parseBinCode,
 } from '@/lib/cellar';
+
+describe('Plan de cave et vues 2D / 3D : une seule source de vérité', () => {
+  const rack: CellarRack = { id: 'arm', name: 'Armoire', prefix: 'A', geometry: 'matrix', rows: 2, cols: 3, createdAt: 1 };
+  const wine: Wine = { id: 'w1', producer: 'Domaine Leflaive', name: 'Puligny-Montrachet', vintage: '2020', color: 'blanc', formatCl: 75, alertThreshold: 0, canonicalKey: 'w1', createdAt: 1, updatedAt: 1 };
+
+  it('place les bouteilles rangées dans le plan aux mêmes alvéoles en vue de face', () => {
+    const stock: StockLevel[] = [{ id: 'w1__s', wineId: 'w1', siteId: 's', qty: 2, bins: ['A-R1-C2', 'A-R2-C3'], updatedAt: 1 }];
+    const plan = buildRackOccupancyMap(rack, stock, new Map([[wine.id, wine]]));
+    const matrix = buildLayoutMatrix(rack, stock, [wine]);
+    const occupied = matrix.flat().filter((c) => c.isOccupied).map((c) => normalizeBin(c.binCode));
+    expect(occupied).toEqual([...plan.keys()]);
+    expect(calculateRackStats(matrix)).toMatchObject({ occupiedSlots: 2, totalBottles: 2 });
+  });
+});
 
 describe('Cellar Cartography Logic (2D & 3D Matrix)', () => {
   it('formats and parses bin codes correctly', () => {

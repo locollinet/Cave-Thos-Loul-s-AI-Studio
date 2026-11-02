@@ -119,6 +119,7 @@ describe('offres — instantané public', () => {
       note: 'Dernières caisses',
     });
     expect(Object.keys(doc.items[1])).not.toContain('minQty');
+    expect(doc.expiresAt).toBe(Date.parse(`${offer().validUntil}T23:59:59Z`));
   });
 
   it('charte : thème de la maison, sinon palace', () => {

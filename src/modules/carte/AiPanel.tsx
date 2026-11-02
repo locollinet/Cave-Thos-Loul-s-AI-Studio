@@ -7,7 +7,7 @@ import type { PublicItem, SommelierAnswer } from './types';
 
 const PROMPT_KEYS = ['carte.ai.p1', 'carte.ai.p2', 'carte.ai.p3'];
 
-export function AiPanel({ sections, language, context = 'pro', onAnswer, embedded = false, t: tOverride }: { sections: { items: PublicItem[] }[]; language: 'fr' | 'en'; context?: 'guest' | 'pro'; onAnswer?: (answer: SommelierAnswer | null) => void; embedded?: boolean; t?: TFn }) {
+export function AiPanel({ sections, language, context = 'pro', onAnswer, embedded = false, t: tOverride, publicId }: { sections: { items: PublicItem[] }[]; language: 'fr' | 'en'; context?: 'guest' | 'pro'; onAnswer?: (answer: SommelierAnswer | null) => void; embedded?: boolean; t?: TFn; publicId?: string }) {
   const { t: uiT } = useI18n();
   const t = tOverride ?? uiT;
   const [question, setQuestion] = useState('');
@@ -57,7 +57,7 @@ export function AiPanel({ sections, language, context = 'pro', onAnswer, embedde
         priceTTC: i.glassPriceTTC ?? i.priceTTC,
         note: i.glassPriceTTC !== undefined ? [`${language === 'en' ? 'by the glass' : 'au verre'}${i.glassCl ? ` ${i.glassCl} cl` : ''}`, i.note].filter(Boolean).join(' — ') : i.note,
       }));
-      const result = await askSommelier(items, q.trim(), language, context);
+      const result = await askSommelier(items, q.trim(), language, context, publicId);
       setAnswer(result);
       onAnswer?.(result);
     } catch (e) {

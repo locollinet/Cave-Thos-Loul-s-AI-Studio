@@ -63,6 +63,8 @@ interface OrgCtx {
   members: Member[];
   hasModule: (m: ModuleId) => boolean;
   can: (min: Role) => boolean;
+  /** Prix d'achat, coûts et marges : back-office uniquement (jamais l'équipe de salle). */
+  canSeeCosts: boolean;
   path: (collection: string, id?: string) => string;
   commit: (ops: Op[]) => Promise<void>;
   updateOrg: (patch: Partial<Org>) => Promise<void>;
@@ -80,7 +82,7 @@ interface Gate {
   status: 'loading' | 'none' | 'ready' | 'error';
   error?: string;
   createOrg: (input: CreateOrgInput) => Promise<void>;
-  joinOrg: (orgId: string) => Promise<void>;
+  joinOrg: (orgId: string, inviteToken: string) => Promise<void>;
 }
 const GateCtx = createContext<Gate | null>(null);
 export const useOrgGate = (): Gate => {
@@ -204,7 +206,18 @@ export function OrgProvider({ children, fallback }: { children: ReactNode; fallb
       await store.commit([{ op: 'set', path: `orgs/${id}/sites/${mainSite.id}`, data: mainSite as never }]);
       if (input.withDemoData) {
         const { buildFullDemoOps } = await import('@/data/demoSetup');
-        await store.commit(buildFullDemoOps(id, mainSite.id, input.profile, { orgName: input.name, modules: o.modules, locale: input.locale, defaultVatRate: o.defaultVatRate, legal: o.legal }), { allowChunking: true });
+        await store.commit(
+          buildFullDemoOps(id, mainSite.id, input.profile, {
+            orgName: input.name,
+            modules: o.modules,
+            locale: input.locale,
+            defaultVatRate: o.defaultVatRate,
+            legal: o.legal,
+            actor: { userId: user.uid, userName: user.name },
+            sampleMembers: store.mode === 'local',
+          }),
+          { allowChunking: true },
+        );
       }
       const prev = (await store.getDoc<UserDoc>(`users/${user.uid}`)) ?? { uid: user.uid, orgIds: [] };
       await store.commit([
@@ -215,15 +228,19 @@ export function OrgProvider({ children, fallback }: { children: ReactNode; fallb
   );
 
   const joinOrg = useCallback(
-    async (joinId: string) => {
+    async (joinId: string, inviteToken: string) => {
       if (!user) return;
+      if (store.mode === 'firebase' && !user.emailVerified) {
+        throw new Error('Confirmez d’abord votre adresse email (lien reçu par email), puis cliquez sur « J’ai confirmé ».');
+      }
       const email = user.email.toLowerCase();
-      const invite = await store.getDoc<Invite>(`orgs/${joinId}/invites/${email}`);
+      const invite = await store.getDoc<Invite>(`orgs/${joinId}/invites/${email}`).catch(() => null);
       if (!invite) throw new Error('Aucune invitation pour cet email dans cette organisation.');
+      if (!inviteToken || invite.token !== inviteToken) throw new Error('Lien d’invitation invalide : ouvrez le dernier lien reçu ou demandez-en un nouveau.');
       if (invite.expiresAt && Date.now() > invite.expiresAt) {
         throw new Error('Cette invitation a expiré (délai de 7 jours dépassé). Demandez un nouveau lien.');
       }
-      const m: Member = { uid: user.uid, email, name: user.name, role: invite.role, createdAt: Date.now() };
+      const m: Member & { inviteToken: string } = { uid: user.uid, email, name: user.name, role: invite.role, createdAt: Date.now(), inviteToken };
       await store.commit([
         { op: 'set', path: `orgs/${joinId}/members/${user.uid}`, data: m as never },
         { op: 'delete', path: `orgs/${joinId}/invites/${email}` },
@@ -293,6 +310,7 @@ export function OrgProvider({ children, fallback }: { children: ReactNode; fallb
       members: membersQ.rows,
       hasModule: (m) => org.modules.includes(m),
       can: (min) => atLeast(effectiveRole, min),
+      canSeeCosts: effectiveRole !== 'staff',
       path: (c, id) => `orgs/${orgId}/${c}${id ? `/${id}` : ''}`,
       commit: (ops) => store.commit(ops),
       updateOrg: (patch) => store.commit([{ op: 'set', path: `orgs/${orgId}`, data: patch as never, merge: true }]),

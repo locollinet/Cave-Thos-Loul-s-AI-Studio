@@ -2,9 +2,11 @@ import { useMemo, useState } from 'react';
 import { ArrowUpFromLine, Check, Eye, MapPin, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import type { CellarRack, Site, StockLevel, Wine } from '@/types';
 import { useOrg } from '@/app/org';
+import { useAuth } from '@/app/auth';
 import { useI18n } from '@/i18n';
 import { Badge, Button, Input, Modal, SearchInput, useToast, cx } from '@/ui';
-import { stockId } from '@/data/stock';
+import { buildMovementOps, stockId, withStockFields } from '@/data/stock';
+import { DELETE_FIELD } from '@/data/sentinels';
 import { uid } from '@/lib/utils';
 import { wineLabel } from '@/lib/wine';
 import {
@@ -33,7 +35,8 @@ export function RackDetailModal({
 }) {
   const { t } = useI18n();
   const { toast, confirm } = useToast();
-  const { wines, stock, commit, path } = useOrg();
+  const { user } = useAuth();
+  const { wines, stock, commit, path, orgId } = useOrg();
 
   const [depth, setDepth] = useState<'front' | 'back'>('front');
   const [selectedSlot, setSelectedSlot] = useState<CellarSlot | null>(null);
@@ -121,10 +124,6 @@ export function RackDetailModal({
         op: 'set',
         path: path('stock', sid),
         data: {
-          id: sid,
-          wineId: wine.id,
-          siteId: site.id,
-          qty: existing.qty,
           bin: formatBinSummary(newBins),
           bins: newBins,
           updatedAt: Date.now(),
@@ -172,7 +171,7 @@ export function RackDetailModal({
         path: path('stock', stockLevel.id),
         data: {
           bin: formatBinSummary(remainingBins),
-          bins: remainingBins.length > 0 ? remainingBins : undefined,
+          bins: remainingBins.length > 0 ? remainingBins : DELETE_FIELD,
           updatedAt: Date.now(),
         },
         merge: true,
@@ -182,48 +181,27 @@ export function RackDetailModal({
     setSelectedSlot(null);
   };
 
-  // Sortie d'une bouteille (consommation / service) : -1 au stock + libère l'alvéole
+  // Sortie d'une bouteille (consommation / service) : mouvement signé + libération de l'alvéole, dans le même lot
   const takeOneBottle = async (slot: CellarSlot, match: SlotMatch) => {
     const { wine, stockLevel } = match;
+    if (!user) return;
     const norm = normalizeBin(slot.code);
     const prevBins = stockLevel.bins ?? (stockLevel.bin ? [stockLevel.bin] : []);
     const remainingBins = prevBins.filter((b) => normalizeBin(b) !== norm);
-    const newQty = Math.max(0, stockLevel.qty - 1);
-
-    await commit([
-      {
-        op: 'set',
-        path: path('stock', stockLevel.id),
-        data: {
-          qty: newQty,
-          bin: formatBinSummary(remainingBins),
-          bins: remainingBins,
-          updatedAt: Date.now(),
-        },
-        merge: true,
-      },
-      {
-        op: 'set',
-        path: path('movements', uid()),
-        data: {
-          id: uid(),
-          date: new Date().toISOString().slice(0, 10),
-          wineId: wine.id,
-          wineLabel: wineLabel(wine),
-          siteId: site.id,
-          type: 'out',
-          qty: 1,
-          reason: 'consommation',
-          unitCostHT: wine.buyPriceHT,
-          note: `Sortie de la cave : ${slot.label} [${slot.code}]`,
-          userId: 'staff',
-          userName: 'Sommelier',
-          createdAt: Date.now(),
-        },
-      },
-    ]);
-    toast(`1 bouteille sortie de ${slot.label}`);
-    setSelectedSlot(null);
+    try {
+      const ops = buildMovementOps(
+        orgId,
+        [{ wine, siteId: site.id, type: 'out', qty: 1, reason: 'consommation', unitCostHT: wine.buyPriceHT, note: `Sortie de la cave : ${slot.label} [${slot.code}]` }],
+        { userId: user.uid, userName: user.name },
+        Date.now(),
+        stock,
+      );
+      await commit(withStockFields(ops, orgId, wine.id, site.id, { bin: formatBinSummary(remainingBins), bins: remainingBins }));
+      toast(`1 bouteille sortie de ${slot.label}`);
+      setSelectedSlot(null);
+    } catch (e) {
+      toast((e as Error).message, 'bad');
+    }
   };
 
   const deleteRack = async () => {

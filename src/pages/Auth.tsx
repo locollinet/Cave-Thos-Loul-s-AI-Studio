@@ -186,10 +186,14 @@ const PROFILES: OrgProfile[] = ['restaurant', 'negoce', 'independant', 'chaine']
 
 export function OnboardingPage() {
   const { t, locale } = useI18n();
-  const { user, signOut } = useAuth();
+  const { user, signOut, refreshUser, sendEmailVerificationNotice } = useAuth();
   const { createOrg, joinOrg, error } = useOrgGate() as ReturnType<typeof useOrgGate> & { error?: string };
   const searchParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
   const inviteOrgId = searchParams.get('org') ?? '';
+  const inviteToken = searchParams.get('invite') ?? '';
+  const inviteEmail = (searchParams.get('email') ?? '').toLowerCase();
+  const wrongAccount = !!inviteEmail && !!user?.email && inviteEmail !== user.email.toLowerCase();
+  const needsVerification = !!inviteOrgId && !user?.demo && user?.emailVerified === false;
 
   const [step, setStep] = useState(1);
   const [profile, setProfile] = useState<OrgProfile>('restaurant');
@@ -218,11 +222,24 @@ export function OnboardingPage() {
     setBusy(true);
     setErr('');
     try {
-      await joinOrg(joinId.trim());
+      await joinOrg(joinId.trim(), inviteToken);
     } catch (e) {
       setErr((e as Error).message);
       setBusy(false);
     }
+  };
+  const confirmVerified = async () => {
+    setBusy(true);
+    setErr('');
+    try {
+      if (!(await refreshUser())) setErr('Adresse email pas encore confirmée : ouvrez le lien reçu par email, puis réessayez.');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const resendVerification = async () => {
+    await sendEmailVerificationNotice().catch(() => undefined);
+    setErr('Un nouveau lien de confirmation vient de vous être envoyé.');
   };
 
   return (
@@ -316,17 +333,32 @@ export function OnboardingPage() {
           <div className="font-medium">{t('onb.join')}</div>
           {inviteOrgId ? (
             <div className="mb-3 mt-1 rounded-md bg-brand-soft p-3 text-xs text-brand">
-              Invitation détectée pour l’organisation <code className="font-mono font-semibold">{inviteOrgId}</code> liée à votre adresse {user?.email}.
+              {wrongAccount
+                ? `Cette invitation est destinée à ${inviteEmail}. Connectez-vous avec cette adresse pour la rejoindre.`
+                : needsVerification
+                  ? `Invitation détectée. Confirmez d’abord votre adresse ${user?.email} grâce au lien reçu par email.`
+                  : `Invitation détectée pour votre adresse ${user?.email}.`}
             </div>
           ) : (
             <p className="mb-3 text-sm text-muted">{t('onb.joinHint')}</p>
           )}
-          <div className="flex gap-2">
-            <Input value={joinId} onChange={(e) => setJoinId(e.target.value)} placeholder={t('onb.joinId')} />
-            <Button variant={inviteOrgId ? 'primary' : 'secondary'} onClick={join} disabled={!joinId.trim()} loading={busy}>
-              {t('onb.joinBtn')}
-            </Button>
-          </div>
+          {needsVerification && !wrongAccount ? (
+            <div className="flex flex-wrap gap-2">
+              <Button variant="primary" onClick={confirmVerified} loading={busy}>
+                J’ai confirmé mon email
+              </Button>
+              <Button variant="secondary" onClick={resendVerification}>
+                Renvoyer le lien
+              </Button>
+            </div>
+          ) : inviteOrgId ? (
+            <div className="flex gap-2">
+              <Input value={joinId} onChange={(e) => setJoinId(e.target.value)} placeholder={t('onb.joinId')} />
+              <Button variant="primary" onClick={join} disabled={!joinId.trim() || wrongAccount} loading={busy}>
+                {t('onb.joinBtn')}
+              </Button>
+            </div>
+          ) : null}
         </Card>
       )}
     </div>

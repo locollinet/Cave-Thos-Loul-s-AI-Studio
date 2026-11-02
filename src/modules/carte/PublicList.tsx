@@ -160,7 +160,7 @@ export default function PublicList() {
               <ChevronDown className="size-4 shrink-0 text-muted transition group-open:rotate-180" />
             </summary>
             <div className="border-t border-border">
-              <AiPanel sections={doc.sections} language={english ? 'en' : (lang as 'fr' | 'en')} context="guest" onAnswer={setAnswer} embedded t={t} />
+              <AiPanel sections={doc.sections} language={english ? 'en' : (lang as 'fr' | 'en')} context="guest" onAnswer={setAnswer} embedded t={t} publicId={publicId} />
             </div>
           </details>
         </div>

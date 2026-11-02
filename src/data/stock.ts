@@ -1,5 +1,6 @@
 import type { Movement, MovementReason, MovementType, StockLevel, Wine } from '@/types';
 import type { Op } from './store';
+import { SERVER_TIME } from './sentinels';
 import { uid, today } from '@/lib/utils';
 import { wineLabel } from '@/lib/wine';
 
@@ -56,12 +57,16 @@ export function assertStockAvailability(stock: StockLevel[], inputs: MovementInp
   }
 }
 
-/** Construit les écritures atomiques (mouvement immuable + incréments de stock). */
+/**
+ * Construit les écritures atomiques : mouvements immuables (horodatés par le serveur) puis une seule écriture
+ * par ligne de stock, qui cite les mouvements qui la justifient (contrôlé par les règles Firestore).
+ */
 export function buildMovementOps(orgId: string, inputs: MovementInput[], actor: Actor, now = Date.now(), currentStock?: StockLevel[]): Op[] {
   if (currentStock) {
     assertStockAvailability(currentStock, inputs);
   }
   const ops: Op[] = [];
+  const levels = new Map<string, { wineId: string; siteId: string; by: number; mv: string[] }>();
   for (const m of inputs) {
     if (!m.qty || (m.type === 'transfer' && (!m.toSiteId || m.toSiteId === m.siteId))) continue;
     const id = uid();
@@ -84,18 +89,36 @@ export function buildMovementOps(orgId: string, inputs: MovementInput[], actor: 
       userName: actor.userName,
       createdAt: now,
     };
-    ops.push({ op: 'set', path: `orgs/${orgId}/movements/${id}`, data: stripUndefined(mv) });
+    ops.push({ op: 'set', path: `orgs/${orgId}/movements/${id}`, data: { ...stripUndefined(mv), at: SERVER_TIME } });
     for (const d of stockDeltas(m)) {
-      ops.push({
-        op: 'inc',
-        path: `orgs/${orgId}/stock/${stockId(m.wine.id, d.siteId)}`,
-        field: 'qty',
-        by: d.delta,
-        data: { id: stockId(m.wine.id, d.siteId), wineId: m.wine.id, siteId: d.siteId, updatedAt: now },
-      });
+      const key = stockId(m.wine.id, d.siteId);
+      const level = levels.get(key) ?? { wineId: m.wine.id, siteId: d.siteId, by: 0, mv: [] };
+      level.by += d.delta;
+      level.mv.push(id);
+      levels.set(key, level);
     }
   }
+  for (const [key, l] of levels) {
+    ops.push({
+      op: 'inc',
+      path: `orgs/${orgId}/stock/${key}`,
+      field: 'qty',
+      by: l.by,
+      data: { id: key, wineId: l.wineId, siteId: l.siteId, mv: l.mv, updatedAt: now },
+    });
+  }
   return ops;
+}
+
+/** Ajoute des champs (emplacements…) à l'écriture de stock d'un lot, ou une écriture fusionnée s'il n'y en a pas. */
+export function withStockFields(ops: Op[], orgId: string, wineId: string, siteId: string, fields: Partial<Pick<StockLevel, 'bin' | 'bins'>>): Op[] {
+  const path = `orgs/${orgId}/stock/${stockId(wineId, siteId)}`;
+  const target = ops.find((o) => o.op === 'inc' && o.path === path);
+  if (target && target.op === 'inc') {
+    target.data = { ...(target.data ?? {}), ...fields };
+    return ops;
+  }
+  return [...ops, { op: 'set', path, data: fields, merge: true }];
 }
 
 const stripUndefined = <T extends object>(o: T): Record<string, unknown> =>

@@ -4,7 +4,7 @@ import type { Movement, RareBottle, Wine } from '@/types';
 import { useCollection, useOrg } from '@/app/org';
 import { useAuth } from '@/app/auth';
 import { useI18n } from '@/i18n';
-import { Badge, Button, Modal, Tabs, useToast } from '@/ui';
+import { Badge, Button, Modal, Tabs, cx, useToast } from '@/ui';
 import { formatLabel } from '@/lib/wine';
 import { dateFr, eur, pct } from '@/lib/utils';
 import { MovementModal } from '../stock/MovementModal';
@@ -30,7 +30,7 @@ export function WineDrawer({ wine: wineProp, wineId, onClose }: { wine?: Wine; w
   const { t, intl } = useI18n();
   const { toast, confirm } = useToast();
   const { user } = useAuth();
-  const { wines, stock, sites, commit, path, can, orgId } = useOrg();
+  const { wines, stock, sites, commit, path, can, orgId, canSeeCosts } = useOrg();
   const wine = wineProp ?? wines.find((w) => w.id === wineId);
   const { rows: movements } = useCollection<Movement>('movements', { orderBy: ['createdAt', 'desc'], limit: 500 });
   const { rows: allBottles } = useCollection<RareBottle>('bottles');
@@ -297,7 +297,7 @@ export function WineDrawer({ wine: wineProp, wineId, onClose }: { wine?: Wine; w
             </div>
           </div> : <>
 
-          <div className="grid grid-cols-3 gap-2 text-center">
+          <div className={cx('grid gap-2 text-center', canSeeCosts ? 'grid-cols-3' : 'grid-cols-2')}>
             <div className="rounded-xl bg-surface-2 p-3">
               <div className="tabular font-display text-2xl font-semibold">{total}</div>
               <div className="text-xs text-muted">{t('common.bottles')}</div>
@@ -306,10 +306,12 @@ export function WineDrawer({ wine: wineProp, wineId, onClose }: { wine?: Wine; w
               <div className="tabular font-display text-2xl font-semibold">{eur(wine.sellPriceHT, 'EUR', intl)}</div>
               <div className="text-xs text-muted">{t('wines.sellPrice')}</div>
             </div>
-            <div className="rounded-xl bg-surface-2 p-3">
-              <div className="tabular font-display text-2xl font-semibold">{margin !== undefined ? pct(margin, 0) : '—'}</div>
-              <div className="text-xs text-muted">{t('wines.margin')}</div>
-            </div>
+            {canSeeCosts && (
+              <div className="rounded-xl bg-surface-2 p-3">
+                <div className="tabular font-display text-2xl font-semibold">{margin !== undefined ? pct(margin, 0) : '—'}</div>
+                <div className="text-xs text-muted">{t('wines.margin')}</div>
+              </div>
+            )}
           </div>
 
           <div className="flex gap-2">
@@ -355,7 +357,7 @@ export function WineDrawer({ wine: wineProp, wineId, onClose }: { wine?: Wine; w
             <h3 className="mb-1 text-sm font-semibold">{t('wines.details')}</h3>
             <Row k={t('wines.grapes')} v={wine.grapes} />
             <Row k={t('wines.country')} v={wine.country} />
-            <Row k={t('wines.buyPrice')} v={wine.buyPriceHT ? eur(wine.buyPriceHT, 'EUR', intl) : undefined} />
+            {canSeeCosts && <Row k={t('wines.buyPrice')} v={wine.buyPriceHT ? eur(wine.buyPriceHT, 'EUR', intl) : undefined} />}
             <Row k={t('wines.menuPrice')} v={wine.menuPriceTTC ? eur(wine.menuPriceTTC, 'EUR', intl) : undefined} />
             <Row k={t('wines.alertThreshold')} v={wine.alertThreshold} />
             <Row k={t('wines.apogee')} v={wine.apogeeFrom && wine.apogeeTo ? `${wine.apogeeFrom} – ${wine.apogeeTo}` : undefined} />

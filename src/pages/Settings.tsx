@@ -7,8 +7,8 @@ import { useAuth } from '@/app/auth';
 import { useI18n } from '@/i18n';
 import { Badge, Button, Card, Checkbox, Field, Input, NumberInput, PageHeader, Select, Table, Tabs, Td, Th, Textarea, useToast, cx } from '@/ui';
 import { MODULE_LIST } from '@/registry';
-import { downloadBlob, uid } from '@/lib/utils';
-import { resetLocalData } from '@/data/store';
+import { dateFr, downloadBlob, toCsv, uid } from '@/lib/utils';
+import { resetLocalData, type DataStore } from '@/data/store';
 import { PRESETS, sanitizeTheme } from '@/lib/brand';
 import { BrandControls } from '@/components/BrandControls';
 import { ListView } from '@/modules/carte/ListView';
@@ -520,39 +520,80 @@ function TeamTab() {
   );
 }
 
+// Collections exportées (portabilité RGPD) ; celles que le rôle ne peut pas lire sont ignorées.
+const EXPORT_COLLECTIONS = [
+  'sites', 'producers', 'wines', 'wineCosts', 'stock', 'movements', 'movementCosts', 'inventories', 'partners', 'openBottles',
+  'racks', 'bottles', 'allocations', 'wineLists', 'purchaseInvoices', 'documents', 'payments', 'consignments', 'counters',
+  'expenses', 'expenseCategories', 'assets', 'drmReports', 'accountingSettings', 'offers', 'members', 'invites', 'posImports', 'wineImages',
+];
+
+function readOnce<T>(store: DataStore, path: string): Promise<T[] | null> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let unsub: () => void = () => undefined;
+    const finish = (rows: T[] | null) => {
+      if (settled) return;
+      settled = true;
+      queueMicrotask(() => unsub());
+      resolve(rows);
+    };
+    unsub = store.subscribeCollection<T>(path, (rows) => finish(rows), undefined, () => finish(null));
+  });
+}
+
+interface DeletionRequest {
+  status: 'pending' | 'processing' | 'done';
+  createdAt: number;
+  requestedByEmail?: string;
+}
+
 function DataTab() {
-  const { t } = useI18n();
+  const { t, intl } = useI18n();
   const { toast, confirm } = useToast();
   const { demo, user } = useAuth();
-  const { org, sites, producers, wines, stock, partners } = useOrg();
+  const { org, wines, stock, store, path, role, canSeeCosts } = useOrg();
+  const [busy, setBusy] = useState(false);
+  const [deletion, setDeletion] = useState<DeletionRequest | null>(null);
 
-  const exportAllJson = () => {
-    downloadBlob(`${org.name.replace(/\W+/g, '-').toLowerCase()}-export.json`, JSON.stringify({ org, sites, producers, wines, stock, partners }, null, 2), 'application/json');
-    toast(t('settings.exported'));
+  useEffect(() => {
+    if (role !== 'owner' || store.mode === 'local') return;
+    store.getDoc<DeletionRequest>(`deletionRequests/${org.id}`).then(setDeletion).catch(() => undefined);
+  }, [store, org.id, role]);
+
+  const exportAllJson = async () => {
+    setBusy(true);
+    try {
+      const data: Record<string, unknown> = { exportedAt: new Date().toISOString(), org };
+      for (const c of EXPORT_COLLECTIONS) {
+        const rows = await readOnce<Record<string, unknown>>(store, path(c));
+        if (rows) data[c] = rows;
+      }
+      downloadBlob(`${org.name.replace(/\W+/g, '-').toLowerCase()}-export.json`, JSON.stringify(data, null, 2), 'application/json');
+      toast(t('settings.exported'));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const exportCsv = () => {
-    const headers = ['Domaine/Producteur', 'Cuvée/Nom', 'Millésime', 'Couleur', 'Format (cl)', 'Région', 'Prix achat HT', 'Prix vente HT', 'Stock total'];
-    const rows = wines.map((w) => {
-      const totalStock = stock.filter((s) => s.wineId === w.id).reduce((sum, s) => sum + s.qty, 0);
-      return [
-        `"${(w.producer || '').replace(/"/g, '""')}"`,
-        `"${(w.name || '').replace(/"/g, '""')}"`,
-        w.vintage ?? '',
-        w.color ?? '',
-        w.formatCl ?? 75,
-        `"${(w.region || '').replace(/"/g, '""')}"`,
-        w.buyPriceHT ?? '',
-        w.sellPriceHT ?? '',
-        totalStock,
-      ].join(';');
-    });
-    const csvContent = '\uFEFF' + [headers.join(';'), ...rows].join('\r\n');
-    downloadBlob(`${org.name.replace(/\W+/g, '-').toLowerCase()}-catalogue-stock.csv`, csvContent, 'text/csv;charset=utf-8');
+    const headers = ['Domaine/Producteur', 'Cuvée/Nom', 'Millésime', 'Couleur', 'Format (cl)', 'Région', ...(canSeeCosts ? ['Prix achat HT'] : []), 'Prix vente HT', 'Stock total'];
+    const rows = wines.map((w) => [
+      w.producer || '',
+      w.name || '',
+      w.vintage ?? '',
+      w.color ?? '',
+      w.formatCl ?? 75,
+      w.region || '',
+      ...(canSeeCosts ? [w.buyPriceHT ?? ''] : []),
+      w.sellPriceHT ?? '',
+      stock.filter((s) => s.wineId === w.id).reduce((sum, s) => sum + s.qty, 0),
+    ]);
+    downloadBlob(`${org.name.replace(/\W+/g, '-').toLowerCase()}-catalogue-stock.csv`, toCsv([headers, ...rows]), 'text/csv;charset=utf-8');
     toast(t('settings.exported'));
   };
 
   const requestDeletion = async () => {
+    if (!user) return;
     const confirmed = await confirm({
       title: t('settings.rgpdDelete'),
       message: t('settings.rgpdConfirmMsg'),
@@ -560,17 +601,14 @@ function DataTab() {
       danger: true,
     });
     if (!confirmed) return;
-    const receipt = {
-      type: 'GDPR_ORGANISATION_DELETION_REQUEST',
-      orgId: org.id,
-      orgName: org.name,
-      requestedBy: user?.email,
-      timestamp: new Date().toISOString(),
-      gracePeriodDays: 30,
-      contact: 'support@louls-thos.example',
-    };
-    downloadBlob(`recu-demande-suppression-rgpd-${org.id}.json`, JSON.stringify(receipt, null, 2), 'application/json');
-    toast(t('settings.rgpdRequested'), 'ok');
+    const request = { orgId: org.id, orgName: org.name, requestedBy: user.uid, requestedByEmail: user.email, status: 'pending' as const, createdAt: Date.now() };
+    try {
+      await store.commit([{ op: 'set', path: `deletionRequests/${org.id}`, data: request }]);
+      setDeletion(request);
+      toast(t('settings.rgpdRequested'), 'ok');
+    } catch (e) {
+      toast((e as Error).message, 'bad');
+    }
   };
 
   const reset = async () => {
@@ -587,7 +625,7 @@ function DataTab() {
         <div className="font-medium">{t('settings.exportTitle')}</div>
         <p className="mb-3 mt-1 text-sm text-muted">{t('settings.exportHint')}</p>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={exportAllJson}>{t('common.export')} JSON</Button>
+          <Button onClick={exportAllJson} loading={busy}>{t('common.export')} JSON</Button>
           <Button variant="secondary" onClick={exportCsv}>{t('settings.exportCsv')}</Button>
         </div>
       </Card>
@@ -595,9 +633,17 @@ function DataTab() {
       <Card className="p-5">
         <div className="font-medium text-bad">{t('settings.rgpdTitle')}</div>
         <p className="mb-3 mt-1 text-sm text-muted">{t('settings.rgpdHint')}</p>
-        <Button variant="danger" onClick={requestDeletion}>
-          {t('settings.rgpdDelete')}
-        </Button>
+        {deletion ? (
+          <p className="text-sm">
+            Demande de suppression enregistrée le {dateFr(deletion.createdAt, intl)} ({deletion.status === 'pending' ? 'en attente de traitement' : deletion.status === 'processing' ? 'en cours' : 'traitée'}).
+          </p>
+        ) : role === 'owner' ? (
+          <Button variant="danger" onClick={requestDeletion} disabled={store.mode === 'local'}>
+            {t('settings.rgpdDelete')}
+          </Button>
+        ) : (
+          <p className="text-sm text-muted">Seul le propriétaire de l’organisation peut demander sa suppression.</p>
+        )}
       </Card>
 
       {demo && (

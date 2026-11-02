@@ -40,6 +40,8 @@ export interface DemoOptions {
   now?: number;
   /** Écritures complémentaires ajoutées à la fin du lot (ex. buildServiceDemoOps). */
   extras?: (ctx: DemoContext) => Op[];
+  /** Auteur des mouvements ; sur Firebase, l'utilisateur connecté (les règles exigent sa signature). */
+  actor?: Actor;
 }
 
 const HOSPITALITY: OrgProfile[] = ['restaurant', 'chaine'];
@@ -180,7 +182,8 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
   const clients = new Map<ClientKey, Partner>();
   for (const { key, ...rest } of CLIENTS) clients.set(key, { id: uid(), kind: 'client', ...rest, createdAt: created });
 
-  const world: DemoWorld = { orgId, profile, clock, rng, actor: DEMO_ACTOR, mainSiteId, sites, wines, wineByKey, seedById, suppliers, clients, ledger: new Ledger() };
+  const actor = opts?.actor ?? DEMO_ACTOR;
+  const world: DemoWorld = { orgId, profile, clock, rng, actor, mainSiteId, sites, wines, wineByKey, seedById, suppliers, clients, ledger: new Ledger() };
 
   /* ---------------------------------------------------------- sorties (12 mois) */
   const ops: Op[] = [];
@@ -216,7 +219,7 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
       0,
     );
   }
-  const built = world.ledger.build(orgId, byId, DEMO_ACTOR, clock);
+  const built = world.ledger.build(orgId, byId, actor, clock);
   for (const w of wines) w.buyPriceHT = built.lastCost.get(w.id) ?? w.buyPriceHT;
 
   const eurocaveRack = mainSite.layout?.racks.find((r) => r.id === 'rack-eurocave');
@@ -288,7 +291,7 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
     profile,
     now,
     today: clock.today,
-    actor: DEMO_ACTOR,
+    actor,
     mainSiteId,
     serviceSiteId: bar?.id ?? mainSiteId,
     sites,
