@@ -28,7 +28,7 @@ export function Review({ initial, createdAt }: Props) {
 
   const suppliers = useMemo(() => partners.filter((p) => p.kind === 'supplier' && !p.isArchived), [partners]);
   const totals = useMemo(() => draftTotals(draft, org.defaultVatRate), [draft, org.defaultVatRate]);
-  const check = useMemo(() => checkTotals(totals, { ht: draft.declaredHT, vat: draft.declaredVAT }), [totals, draft.declaredHT, draft.declaredVAT]);
+  const check = useMemo(() => checkTotals(totals, { ht: draft.declaredHT, vat: draft.declaredVAT, ttc: draft.declaredTTC }), [totals, draft.declaredHT, draft.declaredVAT, draft.declaredTTC]);
   const duplicate = useMemo(() => findDuplicate(invoices, draft.supplierName, draft.number, draft.id), [invoices, draft.supplierName, draft.number, draft.id]);
 
   const patch = (p: Partial<InvoiceDraft>) => setDraft((d) => ({ ...d, ...p }));

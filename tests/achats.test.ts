@@ -41,6 +41,7 @@ describe('totaux', () => {
     expect(checkTotals(c, { ht: 100.2, vat: 20 })).toMatchObject({ ok: false, htDiff: -0.2 });
     expect(checkTotals(c, { ht: 100, vat: 20.1 }).ok).toBe(false);
     expect(checkTotals(c, { ht: 0, vat: 0 }).declared).toBe(false);
+    expect(checkTotals(c, { ht: c.ht, vat: c.vat, ttc: c.ttc + 1 })).toMatchObject({ ok: false, ttcDiff: -1 });
   });
 });
 

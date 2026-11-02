@@ -269,8 +269,9 @@ service cloud.firestore {
       }
 
       // ---------------------------------------------------------------- lot 2 : carte & achats
+      // Cartes : règles de prix (coefficients) réservées à ceux qui les composent ; le public lit l'instantané publié.
       match /wineLists/{id} {
-        allow read: if isMember(orgId);
+        allow read: if hasRole(orgId, ['owner', 'manager', 'sommelier']);
         allow write: if hasRole(orgId, ['owner', 'manager', 'sommelier']) && validId(id);
       }
       match /purchaseInvoices/{id} {

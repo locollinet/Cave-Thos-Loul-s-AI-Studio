@@ -69,6 +69,7 @@ export interface TotalsCheck {
   declared: boolean;
   htDiff: number;
   vatDiff: number;
+  ttcDiff: number;
   ok: boolean;
 }
 

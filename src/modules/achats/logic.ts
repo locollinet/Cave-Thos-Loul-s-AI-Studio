@@ -47,11 +47,12 @@ export function computeTotals(lines: Pick<ReviewLine, 'qty' | 'unitPriceHT' | 'v
 }
 
 /** Compare les totaux calculés aux totaux lus sur la facture ; l'écart toléré est de 0,05 €. */
-export function checkTotals(computed: Totals, declared: { ht: number; vat: number }): TotalsCheck {
+export function checkTotals(computed: Totals, declared: { ht: number; vat: number; ttc?: number }): TotalsCheck {
   const has = declared.ht > 0;
   const htDiff = has ? round2(computed.ht - declared.ht) : 0;
   const vatDiff = has && declared.vat > 0 ? round2(computed.vat - declared.vat) : 0;
-  return { declared: has, htDiff, vatDiff, ok: Math.abs(htDiff) <= TOLERANCE && Math.abs(vatDiff) <= TOLERANCE };
+  const ttcDiff = has && (declared.ttc ?? 0) > 0 ? round2(computed.ttc - (declared.ttc ?? 0)) : 0;
+  return { declared: has, htDiff, vatDiff, ttcDiff, ok: [htDiff, vatDiff, ttcDiff].every((d) => Math.abs(d) <= TOLERANCE) };
 }
 
 export function findDuplicate(invoices: PurchaseInvoice[], supplierName: string, number: string, excludeId?: string): PurchaseInvoice | undefined {

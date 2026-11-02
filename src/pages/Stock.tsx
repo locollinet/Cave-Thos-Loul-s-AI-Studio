@@ -141,7 +141,7 @@ export default function StockPage() {
     const r = rowsById.get(w.id)!;
     const singleLevel = singleSite ? stock.find((l) => l.wineId === w.id && l.siteId === singleSite.id) : null;
     return (
-      <tr onClick={() => setOpenId(w.id)} className="cursor-pointer hover:bg-surface-2/60">
+      <tr tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && setOpenId(w.id)} onClick={() => setOpenId(w.id)} className="cursor-pointer hover:bg-surface-2/60 focus-visible:outline-2 focus-visible:outline-brand">
         <Td className="w-6"><span className={cx('block size-2.5 rounded-full', COLOR_DOT[w.color])} /></Td>
         <Td className="max-w-96 truncate font-medium">
           {grouped ? `${w.name} · ${w.vintage}` : wineLabel(w)}

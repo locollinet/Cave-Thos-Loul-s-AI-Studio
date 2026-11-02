@@ -289,9 +289,12 @@ export function CellarScene3D({
     };
 
     const dom = renderer.domElement;
-    dom.addEventListener('mousedown', onMouseDown);
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
+    // Pointeurs : souris, doigt et stylet ; le glisser ne fait pas défiler la page sur tablette.
+    dom.style.touchAction = 'none';
+    dom.addEventListener('pointerdown', onMouseDown);
+    window.addEventListener('pointermove', onMouseMove);
+    window.addEventListener('pointerup', onMouseUp);
+    window.addEventListener('pointercancel', onMouseUp);
     dom.addEventListener('wheel', onWheel, { passive: false });
     dom.addEventListener('click', onClick);
 
@@ -305,9 +308,10 @@ export function CellarScene3D({
 
     return () => {
       cancelAnimationFrame(animId);
-      dom.removeEventListener('mousedown', onMouseDown);
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
+      dom.removeEventListener('pointerdown', onMouseDown);
+      window.removeEventListener('pointermove', onMouseMove);
+      window.removeEventListener('pointerup', onMouseUp);
+      window.removeEventListener('pointercancel', onMouseUp);
       dom.removeEventListener('wheel', onWheel);
       dom.removeEventListener('click', onClick);
       renderer.dispose();

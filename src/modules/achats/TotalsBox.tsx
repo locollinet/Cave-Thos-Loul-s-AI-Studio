@@ -51,7 +51,7 @@ export function TotalsBox({ draft, computed, check, onChange }: Props) {
         ) : (
           <p role="alert" className="flex items-start gap-2 rounded-lg bg-warn/12 px-3 py-2 text-sm text-warn">
             <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-            {t('achats.totals.gap', { ht: money(check.htDiff), vat: money(check.vatDiff) })}
+            {t('achats.totals.gap', { ht: money(check.htDiff), vat: money(check.vatDiff), ttc: money(check.ttcDiff) })}
           </p>
         ))}
     </Card>

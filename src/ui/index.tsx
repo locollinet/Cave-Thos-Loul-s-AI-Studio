@@ -436,10 +436,13 @@ export const useToast = (): ToastApi => {
 
 export function Tabs<T extends string>({ value, onChange, tabs }: { value: T; onChange: (v: T) => void; tabs: { value: T; label: ReactNode; count?: number }[] }) {
   return (
-    <div className="no-print mb-4 flex gap-1 overflow-x-auto border-b border-border md:flex-wrap md:overflow-visible">
+    <div role="tablist" className="no-print mb-4 flex gap-1 overflow-x-auto border-b border-border md:flex-wrap md:overflow-visible">
       {tabs.map((t) => (
         <button
           key={t.value}
+          type="button"
+          role="tab"
+          aria-selected={value === t.value}
           onClick={() => onChange(t.value)}
           className={cx(
             '-mb-px flex items-center gap-1.5 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition',

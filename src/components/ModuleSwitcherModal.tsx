@@ -66,7 +66,7 @@ export const PRESET_PROFILES: ProfilePreset[] = [
     label: 'Caviste Indépendant',
     icon: Store,
     description: 'Vente, offres clients personnalisées, achats domaines, sélection dynamique.',
-    modules: ['stock', 'achats', 'negoce', 'compta', 'pilotage', 'carte'],
+    modules: PROFILE_MODULES.independant,
   },
   {
     id: 'chaine',

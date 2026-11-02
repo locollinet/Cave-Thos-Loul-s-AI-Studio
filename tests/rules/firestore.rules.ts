@@ -54,6 +54,7 @@ describe('cloisonnement des prix d’achat', () => {
     await assertFails(getDocs(collection(staff, `orgs/${ORG}/wineCosts`)));
     await assertFails(getDocs(collection(staff, `orgs/${ORG}/movementCosts`)));
     await assertFails(getDocs(collection(staff, `orgs/${ORG}/allocations`)));
+    await assertFails(getDocs(collection(staff, `orgs/${ORG}/wineLists`)));
   });
 
   it('le back-office lit les coûts', async () => {

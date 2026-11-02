@@ -142,7 +142,7 @@ export default function WinesPage() {
     const al = wineAlerts(w, n);
     const on = selected.has(w.id);
     return (
-      <tr onClick={() => (selected.size ? toggle(w.id) : open(w.id))} className={cx('cursor-pointer hover:bg-surface-2/60', on && 'bg-brand-soft/60')}>
+      <tr tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && (selected.size ? toggle(w.id) : open(w.id))} onClick={() => (selected.size ? toggle(w.id) : open(w.id))} className={cx('cursor-pointer hover:bg-surface-2/60 focus-visible:outline-2 focus-visible:outline-brand', on && 'bg-brand-soft/60')}>
         {selCol && (
           <Td className="w-8" onClick={(e) => { e.stopPropagation(); toggle(w.id); }}>
             <Checkbox checked={on} onChange={() => toggle(w.id)} label={<span className="sr-only">{t('ux.selectWine', { name: `${w.producer} ${w.name} ${w.vintage}` })}</span>} />
