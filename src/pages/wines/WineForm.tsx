@@ -205,6 +205,16 @@ export function WineFormModal({ wine, onClose, onSaved }: { wine?: Wine; onClose
           <Checkbox checked={!!f.isExceptional} onChange={(v) => set('isExceptional', v)} label="Flacon d'exception / Grand Cru (traçabilité unitaire)" />
           <Checkbox checked={!!f.hideFromMenu} onChange={(v) => set('hideFromMenu', v)} label={t('wines.hideFromMenu')} />
           <Checkbox checked={!!f.isPreSale} onChange={(v) => set('isPreSale', v)} label={t('wines.preSale')} />
+          <Checkbox
+            checked={!!f.allergens?.includes('oeuf')}
+            onChange={(v) => set('allergens', v ? [...new Set([...(f.allergens ?? []), 'oeuf' as const])] : (f.allergens ?? []).filter((a) => a !== 'oeuf'))}
+            label="Collage à l’œuf (allergène signalé sur la carte)"
+          />
+          <Checkbox
+            checked={!!f.allergens?.includes('lait')}
+            onChange={(v) => set('allergens', v ? [...new Set([...(f.allergens ?? []), 'lait' as const])] : (f.allergens ?? []).filter((a) => a !== 'lait'))}
+            label="Collage au lait / caséine (allergène signalé sur la carte)"
+          />
           <Checkbox checked={!!f.byGlass?.enabled} onChange={(v) => set('byGlass', { glassCl: 12.5, ...f.byGlass, enabled: v })} label={t('wines.byGlass')} />
         </div>
         {f.byGlass?.enabled && (

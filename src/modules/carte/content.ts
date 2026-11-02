@@ -1,4 +1,4 @@
-import type { Locale, WineColor } from '@/types';
+import type { Locale, WineAllergen, WineColor } from '@/types';
 
 /** Langues de contenu d'une carte : fr/en (interface complète) + langues de carte supplémentaires. */
 export type ContentLang = Locale | 'it' | 'de' | 'es' | 'zh' | 'ja';
@@ -48,6 +48,8 @@ interface Content {
   glassUnit: string;
   bottle: string;
   footer: string;
+  contains: string;
+  allergens: Record<WineAllergen, string>;
 }
 
 /** Textes standard de la carte, traduits sans IA (fonctionne hors ligne). */
@@ -68,7 +70,9 @@ export const CONTENT: Record<ContentLang, Content> = {
     glass: 'Au verre',
     glassUnit: 'Verre',
     bottle: 'Bouteille',
-    footer: 'Prix en euros, TTC. L’abus d’alcool est dangereux pour la santé, à consommer avec modération.',
+    footer: 'Prix nets en euros, TTC, service compris. Tous nos vins contiennent des sulfites. L’abus d’alcool est dangereux pour la santé, à consommer avec modération.',
+    contains: 'Contient',
+    allergens: { oeuf: 'œuf', lait: 'lait' },
   },
   en: {
     colors: {
@@ -86,7 +90,9 @@ export const CONTENT: Record<ContentLang, Content> = {
     glass: 'By the glass',
     glassUnit: 'Glass',
     bottle: 'Bottle',
-    footer: 'Prices in euros, incl. VAT. Please drink responsibly.',
+    footer: 'Net prices in euros, VAT and service included. All our wines contain sulphites. Please drink responsibly.',
+    contains: 'Contains',
+    allergens: { oeuf: 'egg', lait: 'milk' },
   },
   it: {
     colors: {
@@ -104,7 +110,9 @@ export const CONTENT: Record<ContentLang, Content> = {
     glass: 'Al calice',
     glassUnit: 'Calice',
     bottle: 'Bottiglia',
-    footer: 'Prezzi in euro, IVA inclusa. Bevi responsabilmente.',
+    footer: 'Prezzi netti in euro, IVA e servizio inclusi. Tutti i nostri vini contengono solfiti. Bevi responsabilmente.',
+    contains: 'Contiene',
+    allergens: { oeuf: 'uovo', lait: 'latte' },
   },
   de: {
     colors: {
@@ -122,7 +130,9 @@ export const CONTENT: Record<ContentLang, Content> = {
     glass: 'Glasweise',
     glassUnit: 'Glas',
     bottle: 'Flasche',
-    footer: 'Preise in Euro inkl. MwSt. Bitte genießen Sie verantwortungsvoll.',
+    footer: 'Nettopreise in Euro inkl. MwSt. und Bedienung. Alle unsere Weine enthalten Sulfite. Bitte genießen Sie verantwortungsvoll.',
+    contains: 'Enthält',
+    allergens: { oeuf: 'Ei', lait: 'Milch' },
   },
   es: {
     colors: {
@@ -140,7 +150,9 @@ export const CONTENT: Record<ContentLang, Content> = {
     glass: 'Por copas',
     glassUnit: 'Copa',
     bottle: 'Botella',
-    footer: 'Precios en euros, IVA incluido. Bebe con moderación.',
+    footer: 'Precios netos en euros, IVA y servicio incluidos. Todos nuestros vinos contienen sulfitos. Bebe con moderación.',
+    contains: 'Contiene',
+    allergens: { oeuf: 'huevo', lait: 'leche' },
   },
   zh: {
     colors: {
@@ -158,7 +170,9 @@ export const CONTENT: Record<ContentLang, Content> = {
     glass: '单杯',
     glassUnit: '每杯',
     bottle: '整瓶',
-    footer: '价格以欧元计，含增值税。请理性饮酒。',
+    footer: '价格以欧元计，含增值税及服务费。所有葡萄酒均含亚硫酸盐。请理性饮酒。',
+    contains: '含有',
+    allergens: { oeuf: '鸡蛋', lait: '牛奶' },
   },
   ja: {
     colors: {
@@ -176,7 +190,9 @@ export const CONTENT: Record<ContentLang, Content> = {
     glass: 'グラスワイン',
     glassUnit: 'グラス',
     bottle: 'ボトル',
-    footer: '価格はユーロ表示（税込）です。お酒は適量を。',
+    footer: '価格はユーロ表示（税・サービス料込）です。すべてのワインに亜硫酸塩が含まれます。お酒は適量を。',
+    contains: '含む',
+    allergens: { oeuf: '卵', lait: '乳' },
   },
 };
 

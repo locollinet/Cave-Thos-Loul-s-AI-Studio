@@ -27,6 +27,23 @@ const stk = (wineId: string, siteId: string, qty: number): StockLevel => ({ id: 
 const list = (p: Partial<ReturnType<typeof defaultWineList>> = {}) => ({ ...defaultWineList('fr', 'Carte'), id: 'l1', ...p });
 const items = (s: ReturnType<typeof buildListSections>) => s.flatMap((x) => x.items.map((i) => i.wineId));
 
+describe('mentions légales et allergènes', () => {
+  it('signale les colles allergènes jusque sur la carte publiée, au verre comme en bouteille', () => {
+    const w = wine('a', { allergens: ['oeuf'], byGlass: { enabled: true, glassCl: 12.5, priceTTC: 14 } });
+    const sections = buildListSections(list(), [w, wine('b')], [stk('a', 's1', 6), stk('b', 's1', 6)], org);
+    const pub = toPublicDoc(list(), sections, org, 1);
+    const all = pub.sections.flatMap((s) => s.items);
+    expect(all.filter((i) => i.allergens?.includes('oeuf'))).toHaveLength(2);
+    expect(all.find((i) => i.name === 'Cuvée b')?.allergens).toBeUndefined();
+  });
+
+  it('le pied de carte annonce prix nets service compris et sulfites dans chaque langue', async () => {
+    const { CONTENT } = await import('@/modules/carte/content');
+    expect(CONTENT.fr.footer).toMatch(/service compris.*sulfites/);
+    for (const c of Object.values(CONTENT)) expect(Object.keys(c.allergens)).toEqual(['oeuf', 'lait']);
+  });
+});
+
 describe('buildListSections', () => {
   it('masque les vins épuisés, archivés, cachés et exclus', () => {
     const wines = [wine('a'), wine('b'), wine('c', { isArchived: true }), wine('d', { hideFromMenu: true }), wine('e'), wine('f')];

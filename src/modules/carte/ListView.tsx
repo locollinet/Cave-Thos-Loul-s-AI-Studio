@@ -137,6 +137,11 @@ function Item({ item, theme, pick, intl, lang }: { item: PublicItem; theme: Bran
         </div>
       )}
       {theme.priceStyle === 'below' && <div style={{ color: 'var(--lt-accent)', marginTop: '0.2rem' }}>{price}</div>}
+      {item.allergens?.length ? (
+        <div style={{ ...body, ...muted, fontSize: '0.72rem', marginTop: '0.15rem' }}>
+          {c.contains} : {item.allergens.map((a) => c.allergens[a]).join(', ')}
+        </div>
+      ) : null}
       {item.note && <p style={{ ...head, ...muted, fontStyle: 'italic', fontSize: '0.95rem', marginTop: '0.2rem' }}>{item.note}</p>}
       {pick && (
         <p className="no-print mt-2 flex items-start gap-1.5 rounded-md border border-border bg-surface-2 px-2.5 py-1.5 text-xs" style={body}>

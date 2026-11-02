@@ -1,4 +1,4 @@
-import type { BrandTheme, Locale, WineColor } from '@/types';
+import type { BrandTheme, Locale, WineAllergen, WineColor } from '@/types';
 import type { ExtraLang } from './content';
 
 /** Traductions des textes libres : langue → clé de texte (empreinte du texte source) → traduction. */
@@ -65,6 +65,7 @@ export interface ListItem {
   qty: number;
   glassCl?: number;
   glassPriceTTC?: number;
+  allergens?: WineAllergen[];
 }
 
 export interface ListSection {
@@ -87,6 +88,7 @@ export interface PublicItem {
   note?: string;
   glassCl?: number;
   glassPriceTTC?: number;
+  allergens?: WineAllergen[];
 }
 
 export interface PublicSection {

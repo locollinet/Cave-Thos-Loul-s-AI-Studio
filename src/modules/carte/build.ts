@@ -177,6 +177,7 @@ export function buildListSections(
       note: w.technicalSheet?.bouche || w.technicalSheet?.nez || undefined,
       pinned: pinned.has(w.id),
       qty: n,
+      ...(w.allergens?.length ? { allergens: w.allergens } : {}),
     };
     const key = item.pinned ? PINNED_KEY : groupKey(list, w);
     groups.set(key, [...(groups.get(key) ?? []), item]);
@@ -215,6 +216,7 @@ export function buildListSections(
         qty: n,
         ...(g.glassCl > 0 ? { glassCl: g.glassCl } : {}),
         glassPriceTTC: round2(g.priceTTC),
+        ...(w.allergens?.length ? { allergens: w.allergens } : {}),
       });
     }
     if (glass.length) {
@@ -255,6 +257,7 @@ export function toPublicDoc(list: WineList, sections: ListSection[], org: BrandO
         out.glassPriceTTC = i.glassPriceTTC;
         if (i.glassCl) out.glassCl = i.glassCl;
       }
+      if (i.allergens?.length) out.allergens = i.allergens;
       return out;
     }),
   }));

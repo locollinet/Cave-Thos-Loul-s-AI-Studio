@@ -170,6 +170,11 @@ function PartnerForm({ partner, kind, onClose }: { partner?: Partner; kind: Part
         <Field label={t('settings.vatNumber')}>
           <Input value={f.vatNumber ?? ''} onChange={(e) => set('vatNumber', e.target.value)} />
         </Field>
+        {f.customerType !== 'particulier' && (
+          <Field label="SIREN / SIRET">
+            <Input value={f.siret ?? ''} inputMode="numeric" onChange={(e) => set('siret', e.target.value)} placeholder="Requis pour la facture électronique" />
+          </Field>
+        )}
         <Field label={t('contacts.terms')}>
           <NumberInput value={f.paymentTermsDays} onChange={(v) => set('paymentTermsDays', v)} min={0} />
         </Field>

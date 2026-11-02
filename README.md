@@ -4,11 +4,12 @@ Plateforme de gestion de cave, de négoce et de carte des vins — pour les mais
 
 - **Cave & stock** : référentiel de vins (clé canonique, détection de doublons), multi-sites, mouvements traçables, inventaire mobile, alertes (rupture, stock bas, apogée).
 - **Carte des vins intelligente** : cartes liées au stock réel (un vin épuisé disparaît), 4 templates, QR code, version publique, sommelier IA, fiches techniques générées.
-- **Achats par IA** : import de factures PDF / image / Excel, rapprochement automatique avec le référentiel, réception en stock.
-- **Négoce** : devis, factures, avoirs, règlements, dépôt-vente.
+- **Achats par IA** : import de factures PDF / image / Excel, rapprochement automatique avec le référentiel, réception en stock. Les factures électroniques reçues (Factur-X, XML CII ou UBL) sont lues exactement, sans IA.
+- **Négoce** : devis, factures, avoirs, règlements, dépôt-vente. Export de la facture électronique au format CII EN 16931 (règles françaises de la réforme 2026-2027), à déposer sur la plateforme agréée de l'entreprise.
 - **Comptabilité & douane** : TVA (CA3), DRM, charges, immobilisations, journal et export FEC.
 - **Pilotage** : marges, rotation, analyse ABC, réassort.
-- **Service & au verre** : mode tablette pour la salle (sortie bouteille en un geste avec « Annuler »), bouteilles ouvertes, verres servis, fraîcheur et pertes.
+- **Service & au verre** : mode tablette pour la salle (sortie bouteille en un geste avec « Annuler »), bouteilles ouvertes, verres servis, fraîcheur et pertes. Ventes de caisse importées depuis le rapport de fin de service (CSV), une seule fois par rapport ; connexion directe à une caisse sur projet.
+- **Mentions légales des cartes** : prix nets TTC service compris, sulfites, colles allergènes (œuf, lait) par vin, avertissement santé, dans les 7 langues de la carte publique.
 - **Offres clients & relances** : sélections de vins envoyées par lien public ou PDF à la charte de la maison, conversion en devis ; relances d'impayés et de devis par e-mail.
 - **Fiche client 360°** : chiffre d'affaires, encours, retards, vins achetés, offres et dépôts.
 - **Photos des vins** : prises par l'équipe (téléphone ou import) ; lecture d'étiquette par IA pour préremplir une fiche (sans jamais inventer). Pas de récupération d'images sur Internet (droits d'auteur).
@@ -112,13 +113,15 @@ Pour préparer les démos clients sur Firebase réel (authentification, cloisonn
 | `npm start` | Sert `dist/` en production |
 | `npm run lint` | Vérification TypeScript (`tsc --noEmit`) |
 | `npm test` | Tests unitaires et intégration (Vitest) |
+| `npm run test:rules` | Règles Firestore dans l'émulateur (Java 11+ et `firebase-tools`) |
 
 ## Sécurité & Confidentialité
 
-- **Routes IA (`/api/ai/*`)** : protégées par quota par organisation (500 requêtes/h pour clients, 30/h pour démo, 40/h par carte publique anonyme). Journalisation d'usage (durée, modèle, succès/échec) sans jamais stocker le contenu des requêtes.
-- **Règles Firestore & Storage** : cloisonnement multi-tenant strict via `isMember(orgId)` et rôles (`owner`, `manager`, `sommelier`, `accountant`, `staff`). Les collaborateurs en salle (staff) n'ont aucun accès aux marges ou données financières ; les comptables ne peuvent pas altérer les cartes des vins. Mouvements de stock strictement immuables.
-- **Transactions atomiques** : numérotation sans trou ni doublon (`counters/{cle}`) via `runTransaction`, et vérification de non-négativité du stock (`assertStockAvailability`).
-- **Invitations sécurisées** : invitations par lien avec expiration à 7 jours et assignation de rôle automatique à la première connexion.
-- **RGPD & Mes Données** : export intégral JSON, export tabulaire CSV (catalogue & stocks) et formulaire de demande de suppression intégrale d'organisation.
-- **Cartes publiques** : instantanés dénormalisés (`public_lists`) sans prix d'achat ni quantité de stock, avec protection contre les listings non autorisés.
+- **Routes IA (`/api/ai/*`)** : jeton Firebase vérifié par signature (clés publiques Google), quotas par compte (300/h) et par organisation (500/h). Sans compte : sommelier d'une carte publiée uniquement (40/h par carte, 20/h par appareil) et mode démo limité par IP (30/h), sous un plafond global ; `DEMO_AI=off` ferme l'IA sans compte. Authentification avant lecture du corps (1 Mo, 30 Mo pour les fichiers). Journalisation d'usage (durée, modèle, succès/échec) sans jamais stocker le contenu des requêtes.
+- **En-têtes HTTP** : CSP stricte en production (`CSP_MODE=report-only` pour l'observer), `nosniff`, HSTS, `frame-ancestors 'self'`.
+- **Règles Firestore** (testées dans l'émulateur) : cloisonnement par organisation et par rôle (`owner`, `manager`, `sommelier`, `accountant`, `staff`). Prix d'achat, coefficients et coûts rangés dans `wineCosts` / `movementCosts`, illisibles pour l'équipe de salle. L'équipe ne modifie une quantité qu'avec le mouvement signé qui la justifie (même lot, horodatage serveur). Mouvements immuables, compteurs de numérotation qui n'avancent que d'un pas.
+- **Transactions atomiques** : le numéro de facture est réservé dans la même transaction que la facture et ses sorties de stock (ni trou ni doublon) ; une sortie qui rendrait un stock négatif est refusée.
+- **Invitations sécurisées** : lien à jeton valable 7 jours, adresse email vérifiée exigée, invitation consommée à l'inscription.
+- **RGPD & Mes Données** : export JSON de toutes les collections accessibles au rôle, export CSV protégé contre l'injection de formules, demande de suppression enregistrée (`deletionRequests`) et suivie dans la console plateforme.
+- **Cartes et offres publiques** : instantanés sans prix d'achat ni stock, lecture par identifiant seulement ; une offre expirée n'est plus lisible.
 

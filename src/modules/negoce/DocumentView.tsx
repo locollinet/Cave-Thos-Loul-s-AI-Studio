@@ -1,11 +1,12 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Banknote, FilePlus2, FileText, Pencil, Printer, Send, Truck } from 'lucide-react';
+import { ArrowLeft, Banknote, FileCode2, FilePlus2, FileText, Pencil, Printer, Send, Truck } from 'lucide-react';
 import { useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
-import { dateFr, eur } from '@/lib/utils';
-import { Badge, Button, Card, EmptyState, PageHeader, Spinner, cx } from '@/ui';
+import { dateFr, downloadBlob, eur } from '@/lib/utils';
+import { Badge, Button, Card, EmptyState, Modal, PageHeader, Spinner, cx } from '@/ui';
 import { balanceDue, paidAmount } from './calc';
+import { buildCiiXml, eInvoiceGaps } from './einvoice';
 import DocumentSheet from './DocumentSheet';
 import PaymentModal from './PaymentModal';
 import StatusBadge from './StatusBadge';
@@ -15,11 +16,12 @@ import { useSales } from './useSales';
 export default function DocumentView() {
   const { id = '' } = useParams();
   const { t, intl } = useI18n();
-  const { org } = useOrg();
+  const { org, partners } = useOrg();
   const { docs, payments, loading } = useSales();
   const actions = useDocActions();
   const navigate = useNavigate();
   const [paying, setPaying] = useState(false);
+  const [eInvoice, setEInvoice] = useState(false);
   const [viewMode, setViewMode] = useState<'doc' | 'bl'>('doc');
   const doc = docs.find((d) => d.id === id);
 
@@ -32,6 +34,13 @@ export default function DocumentView() {
   const credits = docs.filter((d) => d.type === 'credit_note' && d.relatedDocumentId === doc.id);
   const myPayments = payments.filter((p) => p.documentId === doc.id);
   const editable = !isLocked(doc);
+  const buyer = partners.find((p) => p.id === doc.partnerId);
+  const seller = { name: org.name, currency: org.currency, legal: org.legal };
+  const gaps = eInvoiceGaps(doc, seller, buyer);
+  const downloadXml = () => {
+    downloadBlob(`${doc.number}.xml`, buildCiiXml(doc, seller, buyer, related), 'application/xml');
+    setEInvoice(false);
+  };
 
   return (
     <>
@@ -74,6 +83,11 @@ export default function DocumentView() {
               <Button variant={editable ? 'secondary' : 'primary'} icon={<Printer className="size-4" />} onClick={() => window.print()}>
                 {t('negoce.printPdf')}
               </Button>
+              {doc.type !== 'quote' && !editable && (
+                <Button icon={<FileCode2 className="size-4" />} onClick={() => setEInvoice(true)}>
+                  Facture électronique
+                </Button>
+              )}
             </>
           }
         />
@@ -144,6 +158,28 @@ export default function DocumentView() {
 
       <DocumentSheet doc={doc} org={org} relatedNumber={related?.number} paid={paid} variant={viewMode === 'bl' ? 'bl' : 'document'} />
       <PaymentModal invoice={paying ? doc : null} balance={balance} onClose={() => setPaying(false)} />
+      <Modal open={eInvoice} onClose={() => setEInvoice(false)} title="Facture électronique" size="md">
+        {gaps.length ? (
+          <div className="space-y-3 text-sm">
+            <p>Pour émettre ce document au format de la réforme (EN 16931), complétez :</p>
+            <ul className="list-disc space-y-1 pl-5 text-muted">
+              {gaps.map((g) => (
+                <li key={g}>{g}</li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <div className="space-y-4 text-sm">
+            <p>
+              Fichier <strong>XML CII, profil EN 16931</strong>, contrôlé selon les règles françaises : montants, TVA, SIREN, mentions de retard de paiement et adresse
+              de facturation. Déposez-le sur votre plateforme agréée (PA), qui le transmet à votre client.
+            </p>
+            <Button variant="primary" icon={<FileCode2 className="size-4" />} onClick={downloadXml}>
+              Télécharger {doc.number}.xml
+            </Button>
+          </div>
+        )}
+      </Modal>
     </>
   );
 }

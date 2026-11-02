@@ -50,7 +50,13 @@ export default function NewInvoice() {
     setBusy(true);
     try {
       let parsed: ParsedInvoice | null;
-      if (AI_MIMES.includes(file.type)) {
+      const isXml = /\.xml$/i.test(file.name) || /\/xml$/.test(file.type);
+      // Factur-X : le XML embarqué donne la facture exacte, sans passer par l'IA.
+      const embedded = file.type === 'application/pdf' ? await import('./einvoiceImport').then(async (m) => m.extractFacturXml(new Uint8Array(await file.arrayBuffer()))) : null;
+      if (isXml || embedded) {
+        const { parseEInvoiceXml } = await import('./einvoiceImport');
+        parsed = parseEInvoiceXml(isXml ? await file.text() : embedded!, wines);
+      } else if (AI_MIMES.includes(file.type)) {
         const { base64, mimeType } = await fileToBase64(file);
         parsed = await apiPost<ParsedInvoice>('/api/ai/parse-invoice', { base64, mimeType, fileName: file.name });
       } else if (/\.(csv|txt|tsv|xlsx|xls|ods)$/i.test(file.name)) {
@@ -106,7 +112,7 @@ export default function NewInvoice() {
             <Sparkles className="size-8 text-accent" />
             <p className="font-display text-lg font-semibold">{t('achats.import.drop')}</p>
             <p className="max-w-md text-sm text-muted">{t('achats.import.formats')}</p>
-            <input ref={input} type="file" className="sr-only" accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.tsv,.txt,.xlsx,.xls,.ods" onChange={(e) => e.target.files?.[0] && void handle(e.target.files[0])} />
+            <input ref={input} type="file" className="sr-only" accept=".pdf,.xml,.png,.jpg,.jpeg,.webp,.csv,.tsv,.txt,.xlsx,.xls,.ods" onChange={(e) => e.target.files?.[0] && void handle(e.target.files[0])} />
             <div className="flex flex-wrap justify-center gap-2">
               <Button variant="primary" icon={<FileUp className="size-4" />} onClick={() => input.current?.click()}>
                 {t('achats.import.choose')}

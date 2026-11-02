@@ -135,6 +135,8 @@ export interface Site {
 }
 
 export type WineColor = 'rouge' | 'blanc' | 'rose' | 'bulles' | 'orange' | 'doux' | 'spiritueux' | 'autre';
+/** Allergènes de collage à déclarer (les sulfites, présents dans tous les vins, sont mentionnés en pied de carte). */
+export type WineAllergen = 'oeuf' | 'lait';
 
 export interface TechnicalSheet {
   aop?: string;
@@ -190,6 +192,7 @@ export interface Wine {
   grapes?: string;
   abv?: number;
   byGlass?: ByTheGlass;
+  allergens?: WineAllergen[];
   hasImage?: boolean; // photo stockée à part : orgs/{orgId}/wineImages/{wineId}
   buyPriceHT?: number;
   sellPriceHT?: number; // prix de vente HT négoce
@@ -321,6 +324,7 @@ export interface Partner {
   postalCode?: string;
   city?: string;
   vatNumber?: string;
+  siret?: string; // SIREN ou SIRET : identifiant du client pour la facture électronique
   paymentTermsDays?: number;
   discountPct?: number;
   notes?: string;
