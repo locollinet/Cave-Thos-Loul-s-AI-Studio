@@ -174,9 +174,11 @@ export function WineDrawer({ wine: wineProp, wineId, onClose }: { wine?: Wine; w
                   </h3>
                   <p className="text-xs text-muted">Bouteilles suivies individuellement avec état de conservation</p>
                 </div>
-                <Button size="sm" variant="secondary" icon={<Plus className="size-4" />} onClick={() => setAddBottle(true)}>
-                  Nouveau flacon
-                </Button>
+                { can('sommelier') && (
+                  <Button size="sm" variant="secondary" icon={<Plus className="size-4" />} onClick={() => setAddBottle(true)}>
+                    Nouveau flacon
+                  </Button>
+                )}
               </div>
 
               {bottles.length === 0 ? (
@@ -184,9 +186,11 @@ export function WineDrawer({ wine: wineProp, wineId, onClose }: { wine?: Wine; w
                   <ShieldCheck className="mx-auto size-8 text-amber-500/60 mb-2" />
                   <p className="text-sm font-medium text-ink">Aucun flacon individuel enregistré</p>
                   <p className="text-xs mt-1">Enregistrez chaque bouteille avec son numéro unique et son niveau de liquide.</p>
-                  <Button size="sm" className="mt-4" icon={<Plus className="size-4" />} onClick={() => setAddBottle(true)}>
-                    Enregistrer une bouteille
-                  </Button>
+                  {can('sommelier') && (
+                    <Button size="sm" className="mt-4" icon={<Plus className="size-4" />} onClick={() => setAddBottle(true)}>
+                      Enregistrer une bouteille
+                    </Button>
+                  )}
                 </div>
               ) : (
                 <div className="space-y-3">

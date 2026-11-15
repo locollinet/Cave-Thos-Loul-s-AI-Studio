@@ -22,7 +22,9 @@ const SETTINGS_TABS: SettingsTab[] = ['org', 'identity', 'modules', 'sites', 'pr
 
 export default function SettingsPage() {
   const { t } = useI18n();
-  const { can } = useOrg();
+  const { org, can } = useOrg();
+  const { user } = useAuth();
+  const canManageModules = !!user?.platformAdmin || !!user?.demo || !!org.isDemo;
   const [params] = useSearchParams();
   const wanted = params.get('tab') as SettingsTab | null;
   const [tab, setTab] = useState<SettingsTab>(wanted && SETTINGS_TABS.includes(wanted) ? wanted : 'org');
@@ -38,7 +40,7 @@ export default function SettingsPage() {
         tabs={[
           { value: 'org', label: t('settings.org') },
           ...(can('manager') ? [{ value: 'identity' as const, label: t('brand.settingsTab') }] : []),
-          { value: 'modules', label: t('settings.modules') },
+          ...(canManageModules ? [{ value: 'modules' as const, label: t('settings.modules') }] : []),
           { value: 'sites', label: t('settings.sites') },
           { value: 'producers', label: t('settings.producers') },
           ...(can('owner') ? [{ value: 'team' as const, label: t('settings.team') }] : []),
@@ -47,7 +49,7 @@ export default function SettingsPage() {
       />
       {tab === 'org' && <OrgTab />}
       {tab === 'identity' && <IdentityTab />}
-      {tab === 'modules' && <ModulesTab />}
+      {tab === 'modules' && canManageModules && <ModulesTab />}
       {tab === 'sites' && <SitesTab />}
       {tab === 'producers' && <ProducersTab />}
       {tab === 'team' && <TeamTab />}

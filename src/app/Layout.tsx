@@ -57,8 +57,8 @@ export function Layout() {
   const [palette, setPalette] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [modulesOpen, setModulesOpen] = useState(false);
-  // Modifier l'organisation (modules, profil) : direction uniquement ; libre en démo locale.
-  const canManageModules = can('manager') || !!user?.demo;
+  // Modifier l'organisation (modules, profil) : administrateur plateforme ou espace de démonstration.
+  const canManageModules = !!user?.platformAdmin || !!user?.demo || !!org.isDemo;
   const loc = useLocation();
   useAutoRepublish();
 

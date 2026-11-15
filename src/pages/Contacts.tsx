@@ -31,7 +31,7 @@ export default function ContactsPage() {
         title={t('nav.contacts')}
         subtitle={t('contacts.subtitle')}
         actions={
-          can('staff') && (
+          can('sommelier') && (
             <Button variant="primary" size="sm" icon={<Plus className="size-4" />} onClick={() => setEditing('new')}>
               {t(kind === 'client' ? 'contacts.newClient' : 'contacts.newSupplier')}
             </Button>

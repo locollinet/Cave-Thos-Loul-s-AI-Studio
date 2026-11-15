@@ -16,13 +16,14 @@ export function BreakdownTab({ view }: { view: PilotageView }) {
   const rows = useMemo(() => marginBy(view.data.sales, wines, BREAKDOWN_KEYS[dim]), [view.data.sales, wines, dim]);
   const max = Math.max(1, ...rows.map((r) => Math.abs(r.margin)));
   const label = (key: string) => (!key ? '—' : dim === 'color' ? t(`pilotage.color.${key}`) : dim === 'format' ? formatLabel(Number(key)) : key);
+  const dimLabel = (d: Dim) => (d === 'vintage' ? 'Millésime' : t(`pilotage.dim.${d}`));
 
   return (
     <div className="space-y-4">
       <Segmented<Dim>
         value={dim}
         onChange={setDim}
-        options={(['producer', 'region', 'color', 'format'] as Dim[]).map((d) => ({ value: d, label: t(`pilotage.dim.${d}`) }))}
+        options={(['producer', 'region', 'color', 'vintage', 'format'] as Dim[]).map((d) => ({ value: d, label: dimLabel(d) }))}
       />
       {rows.length === 0 ? (
         <p className="text-sm text-muted">{t('pilotage.noSales')}</p>
@@ -30,7 +31,7 @@ export function BreakdownTab({ view }: { view: PilotageView }) {
         <Table>
           <thead>
             <tr>
-              <Th>{t(`pilotage.dim.${dim}`)}</Th>
+              <Th>{dimLabel(dim)}</Th>
               <Th right>{t('common.qty')}</Th>
               <Th right>{t('pilotage.kpi.revenue')}</Th>
               <Th right>{t('pilotage.kpi.margin')}</Th>

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
 import { today } from '@/lib/utils';
+import { MultiSiteConsolidationPanel, VintageAnalyticsPanel } from '@/pages/dashboard/VintageAnalyticsPanel';
 import { PageHeader, Segmented, Select, Spinner, Tabs } from '@/ui';
 import { BreakdownTab, SitesTab } from './BreakdownTab';
 import { periodPresets } from './kpis';
@@ -11,16 +12,17 @@ import { usePilotage } from './usePilotage';
 import WinesTab from './WinesTab';
 
 type Preset = 'month' | 'quarter' | 'year' | 'last12';
-type Tab = 'overview' | 'wines' | 'breakdown' | 'sites' | 'replenish';
+type Tab = 'overview' | 'vintages' | 'wines' | 'breakdown' | 'sites' | 'replenish';
 
 export default function PilotageModule() {
-  const { t } = useI18n();
-  const { sites, activeSiteId } = useOrg();
+  const { t, intl } = useI18n();
+  const { org, sites, wines, stock, activeSiteId, can } = useOrg();
   const [preset, setPreset] = useState<Preset>('last12');
   const [tab, setTab] = useState<Tab>('overview');
   const [siteId, setSiteId] = useState(activeSiteId);
   const period = useMemo(() => periodPresets(today())[preset], [preset]);
   const view = usePilotage(period, siteId);
+  const liveWines = useMemo(() => wines.filter((w) => !w.isArchived), [wines]);
 
   return (
     <>
@@ -55,6 +57,7 @@ export default function PilotageModule() {
         onChange={setTab}
         tabs={[
           { value: 'overview', label: t('pilotage.tab.overview') },
+          { value: 'vintages', label: 'Millésimes & Années' },
           { value: 'wines', label: t('pilotage.tab.wines') },
           { value: 'breakdown', label: t('pilotage.tab.breakdown') },
           { value: 'sites', label: t('pilotage.tab.sites'), count: sites.length },
@@ -66,6 +69,32 @@ export default function PilotageModule() {
       ) : (
         <>
           {tab === 'overview' && <OverviewTab view={view} />}
+          {tab === 'vintages' && (
+            <div className="space-y-4">
+              <VintageAnalyticsPanel
+                wines={liveWines}
+                stock={stock}
+                movements={view.input.movements}
+                siteId={siteId}
+                currency={org.currency}
+                intl={intl}
+                vatRate={org.defaultVatRate}
+                canSeeFinance={can('sommelier')}
+              />
+              <MultiSiteConsolidationPanel
+                sites={sites}
+                wines={liveWines}
+                stock={stock}
+                movements={view.input.movements}
+                activeSiteId={siteId}
+                onSelectSite={setSiteId}
+                currency={org.currency}
+                intl={intl}
+                vatRate={org.defaultVatRate}
+                canSeeFinance={can('sommelier')}
+              />
+            </div>
+          )}
           {tab === 'wines' && <WinesTab view={view} />}
           {tab === 'breakdown' && <BreakdownTab view={view} />}
           {tab === 'sites' && <SitesTab view={view} />}

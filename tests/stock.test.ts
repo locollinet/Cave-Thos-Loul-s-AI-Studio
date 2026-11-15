@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { buildMovementOps, stockDeltas, stockId, stockValue, wineAlerts } from '@/data/stock';
+import { buildMovementOps, computeWeightedAverageCost, maturityRisk, stockDeltas, stockId, stockValuation, stockValue, wineAlerts } from '@/data/stock';
 import { detectMapping, mapRows } from '@/lib/importWines';
 import { parseCsv, round2, toCsv } from '@/lib/utils';
-import type { StockLevel, Wine } from '@/types';
+import type { Movement, StockLevel, Wine } from '@/types';
 
 const wine = { id: 'w1', producer: 'Dujac', name: 'Gevrey-Chambertin', vintage: '2018', formatCl: 75 };
 const actor = { userId: 'u1', userName: 'Test' };
@@ -56,11 +56,58 @@ describe('agrégats et alertes', () => {
     expect(stockValue(wines, stock, 'all')).toEqual({ bottles: 16, costHT: 400, sellHT: 680 });
     expect(stockValue(wines, stock, 's2')).toEqual({ bottles: 2, costHT: 100, sellHT: 160 });
   });
-  it('détecte ruptures, stock bas et apogée', () => {
+  it('détecte ruptures, stock bas (global ou par site) et apogée', () => {
     expect(wineAlerts({ alertThreshold: 3 } as Wine, 0)).toContain('out');
     expect(wineAlerts({ alertThreshold: 3 } as Wine, 3)).toContain('low');
+    expect(wineAlerts({ alertThreshold: 6 } as Wine, 3, 2026, { alertThreshold: 2 })).not.toContain('low');
+    expect(wineAlerts({ alertThreshold: 1 } as Wine, 3, 2026, { alertThreshold: 4 })).toContain('low');
     expect(wineAlerts({ alertThreshold: 0, apogeeFrom: 2020, apogeeTo: 2030 } as Wine, 5, 2025)).toContain('apogee');
     expect(wineAlerts({ alertThreshold: 0, apogeeFrom: 2010, apogeeTo: 2020 } as Wine, 5, 2025)).toContain('past');
+  });
+
+  it('valorise le stock en mode restaurant avec menuPriceTTC et ventilation par couleur/site', () => {
+    const restWines: Wine[] = [
+      { ...wine, id: 'r1', color: 'rouge', buyPriceHT: 50, menuPriceTTC: 180, alertThreshold: 2, canonicalKey: 'r1', createdAt: 0, updatedAt: 0 },
+      { ...wine, id: 'b1', color: 'blanc', buyPriceHT: 0, menuPriceTTC: 120, alertThreshold: 2, canonicalKey: 'b1', createdAt: 0, updatedAt: 0 },
+    ];
+    const lvls: StockLevel[] = [
+      { id: 'r1__s1', wineId: 'r1', siteId: 's1', qty: 4, updatedAt: 0 },
+      { id: 'b1__s2', wineId: 'b1', siteId: 's2', qty: 2, updatedAt: 0 },
+    ];
+    const v = stockValuation(restWines, lvls, 'all', { vatRate: 20, preferMenuPrice: true });
+    expect(v.bottles).toBe(6);
+    expect(v.costHT).toBe(200);
+    expect(v.menuTTC).toBe(4 * 180 + 2 * 120);
+    expect(v.sellHT).toBe(4 * 150 + 2 * 100);
+    expect(v.marginHT).toBe(600);
+    expect(v.unpricedCount).toBe(1);
+    expect(v.byColor.rouge?.bottles).toBe(4);
+    expect(v.bySite.s1?.costHT).toBe(200);
+  });
+
+  it('calcule le Coût Moyen Pondéré (CMP) à la réception', () => {
+    expect(computeWeightedAverageCost(6, 50, 6, 70)).toBe(60);
+    expect(computeWeightedAverageCost(0, 50, 6, 70)).toBe(70);
+    expect(computeWeightedAverageCost(6, undefined, 6, 70)).toBe(70);
+  });
+
+  it('détecte les vins en fin d’apogée à rotation trop lente (maturityRisk)', () => {
+    const now = Date.parse('2026-06-15T12:00:00Z');
+    const ws: Wine[] = [
+      { ...wine, id: 'slow', apogeeFrom: 2020, apogeeTo: 2026, buyPriceHT: 80, menuPriceTTC: 240, color: 'rouge', alertThreshold: 1, canonicalKey: 'slow', createdAt: 0, updatedAt: 0 },
+      { ...wine, id: 'fast', apogeeFrom: 2020, apogeeTo: 2027, buyPriceHT: 40, menuPriceTTC: 120, color: 'blanc', alertThreshold: 1, canonicalKey: 'fast', createdAt: 0, updatedAt: 0 },
+    ];
+    const st: StockLevel[] = [
+      { id: 'slow__s1', wineId: 'slow', siteId: 's1', qty: 12, updatedAt: 0 },
+      { id: 'fast__s1', wineId: 'fast', siteId: 's1', qty: 4, updatedAt: 0 },
+    ];
+    const mvs: Movement[] = [
+      { id: 'm1', wineId: 'slow', wineLabel: 'slow', siteId: 's1', type: 'out', reason: 'verre', qty: 1, date: '2026-03-01', userId: 'u', userName: 'U', createdAt: 0 },
+      { id: 'm2', wineId: 'fast', wineLabel: 'fast', siteId: 's1', type: 'out', reason: 'vente', qty: 6, date: '2026-03-01', userId: 'u', userName: 'U', createdAt: 0 },
+    ];
+    const risks = maturityRisk(ws, st, mvs, { now });
+    expect(risks.map((r) => r.wine.id)).toEqual(['slow']);
+    expect(risks[0]).toMatchObject({ qty: 12, annualOut: 1, yearsToClear: 12, costValueHT: 960 });
   });
 });
 

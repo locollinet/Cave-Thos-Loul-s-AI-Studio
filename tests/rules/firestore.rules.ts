@@ -249,7 +249,43 @@ describe('organisations et démos', () => {
 
   it('l’équipe de salle ne modifie pas les modules de l’organisation', async () => {
     await assertFails(setDoc(doc(db('staff1'), `orgs/${ORG}`), { modules: ['stock'] }, { merge: true }));
-    await assertSucceeds(setDoc(doc(db('man1'), `orgs/${ORG}`), { modules: ['stock', 'carte', 'achats'] }, { merge: true }));
+    await assertFails(setDoc(doc(db('man1'), `orgs/${ORG}`), { modules: ['stock', 'carte', 'achats'] }, { merge: true }));
+    await assertSucceeds(setDoc(doc(db('man1'), `orgs/${ORG}`), { name: 'Le Grand Palais Paris' }, { merge: true }));
+    await assertSucceeds(setDoc(doc(db('admin', { platformAdmin: true }), `orgs/${ORG}`), { modules: ['stock', 'carte', 'achats'] }, { merge: true }));
+    await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), `orgs/${ORG}`), { isDemo: true }, { merge: true }));
+    await assertSucceeds(setDoc(doc(db('man1'), `orgs/${ORG}`), { modules: ['stock', 'carte'] }, { merge: true }));
+    await assertFails(setDoc(doc(db('man1'), `orgs/${ORG}`), { isDemo: false }, { merge: true }));
+    await assertFails(setDoc(doc(db('man1'), `orgs/${ORG}`), { expiresAt: 999999999 }, { merge: true }));
+  });
+
+  it('le propriétaire ne peut ni se rétrograder ni supprimer sa propre fiche membre', async () => {
+    await assertFails(setDoc(doc(db('owner1'), `orgs/${ORG}/members/owner1`), { role: 'manager' }, { merge: true }));
+    await assertFails(deleteDoc(doc(db('owner1'), `orgs/${ORG}/members/owner1`)));
+    await assertSucceeds(setDoc(doc(db('owner1'), `orgs/${ORG}/members/owner1`), { name: 'Propriétaire' }, { merge: true }));
+    await assertSucceeds(setDoc(doc(db('owner1'), `orgs/${ORG}/members/man1`), { role: 'sommelier' }, { merge: true }));
+  });
+
+  it('l’équipe de salle est restreinte sur les partenaires, casiers, flacons, inventaires et lots douaniers', async () => {
+    await assertFails(setDoc(doc(db('staff1'), `orgs/${ORG}/partners/p1`), { id: 'p1', kind: 'supplier', name: 'Maison X', createdAt: 1 }));
+    await assertSucceeds(setDoc(doc(db('som1'), `orgs/${ORG}/partners/p1`), { id: 'p1', kind: 'supplier', name: 'Maison X', createdAt: 1 }));
+    await assertFails(setDoc(doc(db('staff1'), `orgs/${ORG}/partners/p1`), { name: 'Maison Y' }, { merge: true }));
+
+    await assertFails(setDoc(doc(db('staff1'), `orgs/${ORG}/racks/r1`), { id: 'r1', name: 'Casier A', rows: 4, cols: 6 }));
+    await assertSucceeds(setDoc(doc(db('som1'), `orgs/${ORG}/racks/r1`), { id: 'r1', name: 'Casier A', rows: 4, cols: 6 }));
+    await assertFails(deleteDoc(doc(db('staff1'), `orgs/${ORG}/racks/r1`)));
+
+    await assertFails(setDoc(doc(db('staff1'), `orgs/${ORG}/bottles/b1`), { id: 'b1', wineId: 'w1', siteId: 's1', bottleNumber: '001', status: 'in_cellar', createdAt: 1 }));
+    await assertSucceeds(setDoc(doc(db('som1'), `orgs/${ORG}/bottles/b1`), { id: 'b1', wineId: 'w1', siteId: 's1', bottleNumber: '001', status: 'in_cellar', createdAt: 1 }));
+    await assertSucceeds(setDoc(doc(db('staff1'), `orgs/${ORG}/bottles/b1`), { status: 'served', servedAt: 2 }, { merge: true }));
+    await assertFails(deleteDoc(doc(db('staff1'), `orgs/${ORG}/bottles/b1`)));
+
+    await assertSucceeds(setDoc(doc(db('staff1'), `orgs/${ORG}/inventories/inv1`), { id: 'inv1', siteId: 's1', name: 'Inv', status: 'open', counts: { w1: 9 }, startedAt: 1, userName: 'staff1' }));
+    await assertFails(setDoc(doc(db('staff1'), `orgs/${ORG}/inventories/inv1`), { status: 'closed', closedAt: 2 }, { merge: true }));
+    await assertFails(deleteDoc(doc(db('staff1'), `orgs/${ORG}/inventories/inv1`)));
+    await assertSucceeds(setDoc(doc(db('som1'), `orgs/${ORG}/inventories/inv1`), { status: 'closed', closedAt: 2 }, { merge: true }));
+
+    await assertFails(setDoc(doc(db('staff1'), `orgs/${ORG}/batches/lot1`), { id: 'lot1', wineId: 'w1', qty: 12 }));
+    await assertSucceeds(setDoc(doc(db('som1'), `orgs/${ORG}/batches/lot1`), { id: 'lot1', wineId: 'w1', qty: 12 }));
   });
 
   it('le propriétaire dépose une demande de suppression RGPD suivie par la plateforme', async () => {

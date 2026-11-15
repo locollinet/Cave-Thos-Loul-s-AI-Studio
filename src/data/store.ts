@@ -383,7 +383,12 @@ export async function commitToFirestore(db: Firestore, ops: Op[], options?: Comm
   for (let i = 0; i < all.length; i += size) {
     const batch = writeBatch(db);
     for (const o of all.slice(i, i + size)) write(batch, doc(db, o.path), o);
-    await batch.commit();
+    const pending = batch.commit();
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      pending.catch((e) => console.warn('Synchronisation hors-ligne rejetée au retour réseau', e));
+    } else {
+      await pending;
+    }
   }
 }
 

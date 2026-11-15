@@ -121,7 +121,11 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
   };
   let bar: Site | undefined;
   let hotel: Site | undefined;
-  if (profile === 'restaurant') bar = addSite('Salle & bar', 'bar');
+  let gastro: Site | undefined;
+  if (profile === 'restaurant') {
+    bar = addSite('Salle & bar', 'bar');
+    gastro = addSite('Table Gastronomique & Bistrot', 'restaurant');
+  }
   if (profile === 'chaine') {
     mainSite.name = 'Le Grand Palais — Paris';
     siteOps.push({ op: 'set', path: `${base}/sites/${mainSiteId}`, data: { name: mainSite.name }, merge: true });
@@ -163,6 +167,8 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
       technicalSheet: s.sheet ? { ...s.sheet, generatedByAI: false } : undefined,
       menuPriceTTC: hospitality ? menuPrice(buy) : undefined,
       byGlass: hospitality && s.glass ? { enabled: true, glassCl: 12.5, priceTTC: s.glass } : undefined,
+      hideFromMenu: s.key === 'commaraine-clos-2021' || s.key === 'roulot-luchets-2021', // En garde dans la cave voûtée
+      isExceptional: ['drc-tache', 'commaraine-clos-2017', 'cristal', 'yquem'].includes(s.key) || undefined,
       canonicalKey: '',
       createdAt: created + i * 60_000,
       updatedAt: now,
@@ -199,6 +205,12 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
     const secondaries: SecondarySite[] = [];
     if (profile === 'restaurant' && bar) {
       secondaries.push({ siteId: bar.id, name: bar.name, wines: wines.filter(servable), factor: 0.6, every: 2, batch: 1, target: (s) => Math.ceil(s.qty * 0.25) });
+      if (gastro) {
+        const gastroWines = ['commaraine-clos-2018', 'commaraine-clos-2019', 'leflaive-puligny', 'leflaive-puligny-2019', 'roulot-luchets', 'dujac-gevrey', 'lascases', 'jamet-cote-rotie', 'krug-gc', 'zind-windsbuhl']
+          .map((k) => wineByKey.get(k)!)
+          .filter(Boolean);
+        secondaries.push({ siteId: gastro.id, name: gastro.name, wines: gastroWines, factor: 0.55, every: 3, batch: 2, target: (s) => Math.max(2, Math.ceil(s.qty * 0.25)) });
+      }
     }
     if (profile === 'chaine' && hotel && bar) {
       secondaries.push(
@@ -269,10 +281,42 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
     wineList = carte.list;
   }
 
+  const rareBottleOps: Op[] = [
+    { key: 'drc-tache', number: '00418 / 01850', slot: 'ARM-R1-C1', level: 'normal', label: 'parfait', capsule: 'intacte', cbo: true, provenance: 'Allocation directe Domaine de la Romanée-Conti' },
+    { key: 'commaraine-clos-2017', number: '00112 / 02400', slot: 'ARM-R1-C2', level: 'normal', label: 'parfait', capsule: 'cire', cbo: true, provenance: 'Réserve historique du Château (Monopole)' },
+    { key: 'cristal', number: 'CR-2013-089', slot: 'ARM-R2-C1', level: 'normal', label: 'parfait', capsule: 'intacte', cbo: true, provenance: 'Maison Louis Roederer — Reims' },
+    { key: 'yquem', number: 'YQ-2014-014', slot: 'ARM-R2-C2', level: 'normal', label: 'parfait', capsule: 'intacte', cbo: false, provenance: 'Place de Bordeaux' },
+  ].flatMap((b) => {
+    const w = wineByKey.get(b.key);
+    if (!w) return [];
+    const id = `rb-${b.key}`;
+    return [{
+      op: 'set' as const,
+      path: `${base}/bottles/${id}`,
+      data: {
+        id,
+        wineId: w.id,
+        siteId: mainSiteId,
+        slotCode: b.slot,
+        bottleNumber: b.number,
+        liquidLevel: b.level,
+        labelCondition: b.label,
+        capsuleCondition: b.capsule,
+        cbo: b.cbo,
+        provenance: b.provenance,
+        purchasePriceHT: w.buyPriceHT,
+        status: 'in_stock',
+        createdAt: created,
+        updatedAt: now,
+      },
+    }];
+  });
+
   ops.push(
     ...siteOps,
     ...[...producers.values()].map((p): Op => ({ op: 'set', path: `${base}/producers/${p.id}`, data: p as never })),
     ...wines.map((w): Op => ({ op: 'set', path: `${base}/wines/${w.id}`, data: json(w) })),
+    ...rareBottleOps,
     ...suppliers.map(({ partner }): Op => ({ op: 'set', path: `${base}/partners/${partner.id}`, data: json(partner) })),
     ...[...clients.values()].map((c): Op => ({ op: 'set', path: `${base}/partners/${c.id}`, data: json(c) })),
     ...built.ops,

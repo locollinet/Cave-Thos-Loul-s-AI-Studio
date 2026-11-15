@@ -170,11 +170,24 @@ export function OrgProvider({ children, fallback }: { children: ReactNode; fallb
     };
   }, [store, userDoc?.orgIds.join(',')]);
 
-  const [activeSiteId, setActiveSite] = useState<string>(() => localStorage.getItem('lt-active-site') ?? 'all');
-  const setActiveSiteId = useCallback((id: string) => {
-    localStorage.setItem('lt-active-site', id);
-    setActiveSite(id);
-  }, []);
+  const [activeSiteId, setActiveSite] = useState<string>(() => (orgId ? localStorage.getItem(`lt-active-site:${orgId}`) : null) ?? localStorage.getItem('lt-active-site') ?? 'all');
+  useEffect(() => {
+    if (!orgId) return;
+    setActiveSite(localStorage.getItem(`lt-active-site:${orgId}`) ?? 'all');
+  }, [orgId]);
+  useEffect(() => {
+    if (!sitesQ.loading && sitesQ.rows.length > 0 && activeSiteId !== 'all' && !sitesQ.rows.some((s) => s.id === activeSiteId)) {
+      setActiveSite('all');
+    }
+  }, [sitesQ.loading, sitesQ.rows, activeSiteId]);
+  const setActiveSiteId = useCallback(
+    (id: string) => {
+      if (orgId) localStorage.setItem(`lt-active-site:${orgId}`, id);
+      localStorage.setItem('lt-active-site', id);
+      setActiveSite(id);
+    },
+    [orgId],
+  );
 
   const createOrg = useCallback(
     async (input: CreateOrgInput) => {

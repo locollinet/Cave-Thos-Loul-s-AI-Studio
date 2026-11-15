@@ -221,6 +221,10 @@ export interface StockLevel {
   qty: number;
   bin?: string; // emplacement principal ou résumé (ex: "ARM-R1 · 6 btl" ou "VRAC-1")
   bins?: string[]; // liste précise des alvéoles unitaires (1 emplacement par bouteille)
+  alertThreshold?: number; // seuil d'alerte spécifique à ce site (surcharge Wine.alertThreshold)
+  byGlass?: boolean; // servi au verre sur ce site (surcharge Wine.byGlass.enabled)
+  menuPriceTTC?: number; // prix carte TTC spécifique à ce site (ex: Bistrot vs Gastronomique)
+  hiddenOnSite?: boolean; // masqué du service sur ce site (ex: Cave de garde)
   updatedAt: number;
 }
 

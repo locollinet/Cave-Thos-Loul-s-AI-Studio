@@ -255,7 +255,7 @@ describe.each(PROFILES)('démo %s', (profile) => {
     });
 
     it('plusieurs sites alimentés par transferts', () => {
-      expect(d.sites.length).toBe(profile === 'chaine' ? 3 : 2);
+      expect(d.sites.length).toBe(3);
       const transfers = d.movements.filter((m) => m.type === 'transfer');
       expect(transfers.length).toBeGreaterThan(5);
       for (const s of d.sites.filter((x) => x.id !== MAIN)) expect(d.stock.some((l) => l.siteId === s.id && l.qty > 0)).toBe(true);

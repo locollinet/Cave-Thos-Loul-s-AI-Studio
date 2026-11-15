@@ -159,8 +159,10 @@ export function stockAlerts(wines: Wine[], stock: StockLevel[], siteId: string, 
   const out: StockAlerts = { out: [], low: [], past: [], apogee: [] };
   for (const w of wines) {
     if (w.isArchived) continue;
-    const a = wineAlerts(w, qty.get(w.id) ?? 0, year);
-    if (a.includes('out') && (w.alertThreshold > 0 || tracked.has(w.id))) out.out.push(w);
+    const level = siteId !== 'all' ? stock.find((l) => l.wineId === w.id && l.siteId === siteId) : undefined;
+    const a = wineAlerts(w, qty.get(w.id) ?? 0, year, level);
+    const threshold = level?.alertThreshold !== undefined ? level.alertThreshold : w.alertThreshold;
+    if (a.includes('out') && (threshold > 0 || tracked.has(w.id))) out.out.push(w);
     if (a.includes('low')) out.low.push(w);
     if (a.includes('past')) out.past.push(w);
     if (a.includes('apogee')) out.apogee.push(w);

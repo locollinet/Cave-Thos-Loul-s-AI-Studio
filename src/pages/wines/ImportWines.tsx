@@ -1,6 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
 import { FileUp } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import type { Producer, Wine } from '@/types';
 import { useOrg } from '@/app/org';
 import { useAuth } from '@/app/auth';
@@ -27,6 +26,7 @@ export function ImportWinesModal({ onClose }: { onClose: () => void }) {
   const file = useRef<HTMLInputElement>(null);
 
   const load = async (f: File) => {
+    const XLSX = await import('xlsx');
     const wb = XLSX.read(await f.arrayBuffer(), { type: 'array' });
     const data = XLSX.utils.sheet_to_json<unknown[]>(wb.Sheets[wb.SheetNames[0]], { header: 1, blankrows: false, defval: '' });
     if (!data.length) return;

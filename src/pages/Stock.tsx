@@ -77,7 +77,8 @@ export default function StockPage() {
       sortWines(pool.filter((w) => matchesWine(w, qty.get(w.id) ?? 0, filters, q)), qty, sort, filters.price, reverse).map((w) => {
         const per = visibleSites.map((s) => stock.find((l) => l.wineId === w.id && l.siteId === s.id)?.qty ?? 0);
         const total = per.reduce((a, b) => a + b, 0);
-        return { w, per, total, alerts: wineAlerts(w, total) };
+        const level = visibleSites.length === 1 ? stock.find((l) => l.wineId === w.id && l.siteId === visibleSites[0].id) : undefined;
+        return { w, per, total, alerts: wineAlerts(w, total, undefined, level) };
       }),
     [pool, stock, visibleSites, q, filters, qty, sort, reverse],
   );

@@ -59,7 +59,7 @@ export function buildSalesData(i: Omit<PilotageInput, 'siteId'> & { siteId?: str
     if (m.reason === 'vente') {
       if (m.documentId) continue;
       sales.push({ date: m.date, wineId: m.wineId, siteId: m.siteId, qty: m.qty, revenueHT: m.qty * (m.unitPriceHT ?? w?.sellPriceHT ?? 0), costHT: m.qty * unitCost, source: 'movement' });
-    } else if (m.reason === 'consommation' && i.restaurantMode) {
+    } else if ((m.reason === 'consommation' || m.reason === 'verre') && i.restaurantMode) {
       const unitHT = w?.menuPriceTTC ? htFromTtc(w.menuPriceTTC, i.vatRate) : (w?.sellPriceHT ?? 0);
       sales.push({ date: m.date, wineId: m.wineId, siteId: m.siteId, qty: m.qty, revenueHT: m.qty * unitHT, costHT: m.qty * unitCost, source: 'theoretical' });
     } else if (isShrink(m.reason)) {
@@ -174,6 +174,7 @@ export const BREAKDOWN_KEYS = {
   producer: (w: Wine | undefined) => w?.producer ?? '',
   region: (w: Wine | undefined) => w?.region ?? '',
   color: (w: Wine | undefined) => w?.color ?? '',
+  vintage: (w: Wine | undefined) => w?.vintage ?? 'NM',
   format: (w: Wine | undefined) => (w ? String(w.formatCl) : ''),
 };
 

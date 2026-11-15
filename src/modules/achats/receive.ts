@@ -1,6 +1,6 @@
-import type { Org, Partner, Producer, PurchaseInvoice, PurchaseLine, Wine } from '@/types';
+import type { Org, Partner, Producer, PurchaseInvoice, PurchaseLine, StockLevel, Wine } from '@/types';
 import type { Op } from '@/data/store';
-import { buildMovementOps, type Actor } from '@/data/stock';
+import { buildMovementOps, computeWeightedAverageCost, stockByWine, type Actor } from '@/data/stock';
 import { canonicalKey, norm } from '@/lib/wine';
 import { round2, uid } from '@/lib/utils';
 import { computeTotals } from './logic';
@@ -13,6 +13,7 @@ export interface ReceptionContext {
   wines: Wine[];
   producers: Producer[];
   partners: Partner[];
+  stock?: StockLevel[];
   now?: number;
 }
 
@@ -135,12 +136,18 @@ export function buildInvoiceOps(draft: InvoiceDraft, mode: 'draft' | 'receive', 
         now,
       ),
     );
-    const priced = new Map<string, number>();
-    for (const { wine, line } of stockIns) if (line.unitPriceHT > 0) priced.set(wine.id, line.unitPriceHT);
     const created = new Set([...resolved.values()].map((w) => w.id));
-    for (const [id, price] of priced) {
-      if (created.has(id)) continue;
-      ops.push({ op: 'set', path: `${base}/wines/${id}`, data: { buyPriceHT: price, updatedAt: now }, merge: true });
+    const currentQty = ctx.stock ? stockByWine(ctx.stock, 'all') : new Map<string, number>();
+    const runningCost = new Map<string, { qty: number; costHT: number | undefined }>();
+    for (const { wine, line } of stockIns) {
+      if (line.unitPriceHT <= 0 || created.has(wine.id)) continue;
+      const prev = runningCost.get(wine.id) ?? { qty: currentQty.get(wine.id) ?? 0, costHT: wine.buyPriceHT };
+      const nextCost = computeWeightedAverageCost(prev.qty, prev.costHT, line.qty, line.unitPriceHT);
+      runningCost.set(wine.id, { qty: prev.qty + line.qty, costHT: nextCost });
+    }
+    for (const [id, { costHT }] of runningCost) {
+      if (costHT === undefined || costHT <= 0) continue;
+      ops.push({ op: 'set', path: `${base}/wines/${id}`, data: { buyPriceHT: costHT, updatedAt: now }, merge: true });
     }
   }
 

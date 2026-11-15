@@ -6,7 +6,7 @@ import type { Movement } from '@/types';
 import { useCollection, useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
 import { Badge, cx } from '@/ui';
-import { stockByWine, stockValue } from '@/data/stock';
+import { stockByWine, stockValuation, stockValue } from '@/data/stock';
 import { num, today } from '@/lib/utils';
 import { wineLabel } from '@/lib/wine';
 import type { WineList } from '@/modules/carte/types';
@@ -15,6 +15,7 @@ import { COLOR_DOT } from '../Wines';
 import { cellarInsight, drinkingWindow, listShortages, monthlyExits, openBottles, stockAlerts, todayMovements, type OpenBottleDoc, type OpenBottleRow, type WindowRow } from './compute';
 import { AlertList, Invite, Ledger, MovementList, Panel, PanelLink, QuickActions, Skeleton, type QuickAction } from './parts';
 import { Shell } from './Shell';
+import { MultiSiteConsolidationPanel, VintageAnalyticsPanel } from './VintageAnalyticsPanel';
 
 export function useServiceActions(): QuickAction[] {
   const { t } = useI18n();
@@ -101,17 +102,22 @@ export function DrinkingWindowPanel({ wines, qty, className }: { wines: Paramete
 
 export default function CellarDashboard() {
   const { t, intl } = useI18n();
-  const { org, wines, stock, activeSiteId, hasModule, can } = useOrg();
-  const movements = useCollection<Movement>('movements');
+  const { org, sites, wines, stock, activeSiteId, setActiveSiteId, hasModule, can } = useOrg();
+  const movements = useCollection<Movement>('movements', { orderBy: ['createdAt', 'desc'], limit: 500 });
   const lists = useCollection<WineList>('wineLists');
   const bottles = useCollection<OpenBottleDoc>('openBottles');
   const carte = hasModule('carte');
+  const canSeeFinance = can('sommelier');
   const asOf = today();
   const f0 = (n: number) => new Intl.NumberFormat(intl, { style: 'currency', currency: org.currency, maximumFractionDigits: 0 }).format(n);
 
   const live = useMemo(() => wines.filter((w) => !w.isArchived), [wines]);
   const qty = useMemo(() => stockByWine(stock, activeSiteId), [stock, activeSiteId]);
-  const value = useMemo(() => stockValue(live, stock, activeSiteId), [live, stock, activeSiteId]);
+  const value = useMemo(() => stockValue(live, stock, activeSiteId, org.defaultVatRate), [live, stock, activeSiteId, org.defaultVatRate]);
+  const valuation = useMemo(
+    () => stockValuation(live, stock, activeSiteId, { vatRate: org.defaultVatRate, preferMenuPrice: org.profile === 'restaurant' || org.profile === 'chaine' }),
+    [live, stock, activeSiteId, org.defaultVatRate, org.profile],
+  );
   const alerts = useMemo(() => stockAlerts(live, stock, activeSiteId), [live, stock, activeSiteId]);
   const published = useMemo(() => lists.rows.filter((l) => l?.published), [lists.rows]);
   const shortages = useMemo(() => listShortages(published, live, stock), [published, live, stock]);
@@ -236,7 +242,20 @@ export default function CellarDashboard() {
             rows
             items={[
               { label: t('dash.bottles'), value: num(value.bottles, intl), sub: t('dash.refs', { n: live.filter((w) => (qty.get(w.id) ?? 0) > 0).length }) },
-              can('accountant') ? { label: t('dash.stockCost'), value: f0(value.costHT), sub: t('common.ht') } : { label: t('dash.refsTotal'), value: num(live.length, intl) },
+              canSeeFinance
+                ? { label: t('dash.stockCost'), value: f0(valuation.costHT), sub: t('common.ht') }
+                : { label: t('dash.refsTotal'), value: num(live.length, intl) },
+              ...(canSeeFinance && valuation.sellHT > 0
+                ? [
+                    { label: 'Valeur Carte', value: f0(valuation.sellHT), sub: `${t('common.ht')} · ${f0(valuation.menuTTC)} TTC` },
+                    {
+                      label: 'Marge latente',
+                      value: `+${f0(valuation.marginHT)}`,
+                      sub: valuation.marginRate !== null ? `Taux de marque ${valuation.marginRate} %` : t('common.ht'),
+                      tone: 'ok' as const,
+                    },
+                  ]
+                : []),
             ]}
           />
           <div className="mt-4">
@@ -250,6 +269,32 @@ export default function CellarDashboard() {
             )}
           </div>
         </Panel>
+
+        <MultiSiteConsolidationPanel
+          className="lg:col-span-12"
+          sites={sites}
+          wines={live}
+          stock={stock}
+          movements={movements.rows}
+          activeSiteId={activeSiteId}
+          onSelectSite={setActiveSiteId}
+          currency={org.currency}
+          intl={intl}
+          vatRate={org.defaultVatRate}
+          canSeeFinance={canSeeFinance}
+        />
+
+        <VintageAnalyticsPanel
+          className="lg:col-span-12"
+          wines={live}
+          stock={stock}
+          movements={movements.rows}
+          siteId={activeSiteId}
+          currency={org.currency}
+          intl={intl}
+          vatRate={org.defaultVatRate}
+          canSeeFinance={canSeeFinance}
+        />
       </div>
     </Shell>
   );

@@ -21,7 +21,7 @@ export default function NegoceDashboard() {
   const { org, wines, stock, activeSiteId, can, hasModule } = useOrg();
   const docs = useCollection<SaleDocument>('documents');
   const payments = useCollection<Payment>('payments');
-  const movements = useCollection<Movement>('movements');
+  const movements = useCollection<Movement>('movements', { orderBy: ['createdAt', 'desc'], limit: 500 });
   const loading = docs.loading || payments.loading || movements.loading;
   const asOf = today();
   const sales = hasModule('negoce');

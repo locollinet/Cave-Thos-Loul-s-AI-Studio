@@ -28,6 +28,9 @@ service cloud.firestore {
     function orgDoc(orgId) {
       return get(orgPath(orgId));
     }
+    function orgData(orgId) {
+      return orgDoc(orgId).data;
+    }
     function userEmail() {
       return request.auth.token.email.lower();
     }
@@ -107,9 +110,13 @@ service cloud.firestore {
         && (request.resource.data.ownerUid == request.auth.uid || isPlatformAdmin())
         && request.resource.data.id == orgId
         && request.resource.data.name is string && request.resource.data.name.size() <= 200;
-      allow update: if (isAdmin(orgId) || isPlatformAdmin())
-        && request.resource.data.ownerUid == resource.data.ownerUid
-        && request.resource.data.id == orgId;
+      allow update: if request.resource.data.ownerUid == resource.data.ownerUid
+        && request.resource.data.id == orgId
+        && (
+          isPlatformAdmin()
+          || (isAdmin(orgId) && resource.data.get('isDemo', false) == true && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isDemo', 'expiresAt']))
+          || (isAdmin(orgId) && resource.data.get('isDemo', false) != true && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['modules', 'profile', 'isDemo', 'expiresAt']))
+        );
       allow delete: if isPlatformAdmin();
 
       // Membres : le créateur s'inscrit propriétaire dans le même lot que l'organisation ;
@@ -121,8 +128,8 @@ service cloud.firestore {
             (getAfter(orgPath(orgId)).data.ownerUid == uid && request.resource.data.role == 'owner')
             || validInvite(orgId)
           );
-        allow update: if hasRole(orgId, ['owner']) && request.resource.data.uid == uid;
-        allow delete: if hasRole(orgId, ['owner']) || (signedIn() && uid == request.auth.uid);
+        allow update: if hasRole(orgId, ['owner']) && request.resource.data.uid == uid && (uid != orgData(orgId).ownerUid || request.resource.data.role == 'owner');
+        allow delete: if (hasRole(orgId, ['owner']) || (signedIn() && uid == request.auth.uid)) && uid != orgData(orgId).ownerUid;
       }
 
       function validInvite(orgId) {
@@ -228,11 +235,13 @@ service cloud.firestore {
       }
       match /inventories/{id} {
         allow read: if isMember(orgId);
-        allow write: if isMember(orgId) && validId(id);
+        allow create, update: if isMember(orgId) && validId(id)
+          && (isBackOffice(orgId) || request.resource.data.get('status', 'open') != 'closed');
+        allow delete: if isBackOffice(orgId) && validId(id);
       }
       match /partners/{id} {
         allow read: if isMember(orgId);
-        allow create, update: if isMember(orgId) && validId(id)
+        allow create, update: if isBackOffice(orgId) && validId(id)
           && request.resource.data.name is string && request.resource.data.name.size() <= 300;
         allow delete: if isAdmin(orgId);
       }
@@ -250,11 +259,16 @@ service cloud.firestore {
       // Cartographie des casiers et flacons d'exception
       match /racks/{id} {
         allow read: if isMember(orgId);
-        allow write: if isMember(orgId) && validId(id);
+        allow create, update, delete: if isBackOffice(orgId) && validId(id);
       }
       match /bottles/{id} {
         allow read: if isMember(orgId);
-        allow write: if isMember(orgId) && validId(id);
+        allow create, delete: if isBackOffice(orgId) && validId(id);
+        allow update: if isMember(orgId) && validId(id);
+      }
+      match /batches/{id} {
+        allow read: if isMember(orgId);
+        allow create, update, delete: if isBackOffice(orgId) && validId(id);
       }
       // Allocations : prix d'achat domaine, réservé à la direction et au sommelier.
       match /allocations/{id} {

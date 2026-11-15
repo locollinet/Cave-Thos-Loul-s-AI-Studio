@@ -179,6 +179,26 @@ export const WINE_SEEDS: WineSeed[] = [
   { key: 'joguet-chinon', producer: 'Domaine Charles Joguet', name: 'Chinon Les Petites Roches', vintage: '2021', color: 'rouge', region: 'Loire', subRegion: 'Touraine', appellation: 'Chinon', country: FR, grapes: 'Cabernet franc', buy: 22, qty: 30, apogee: [2023, 2029] },
   { key: 'vega-valbuena', producer: 'Vega Sicilia', name: 'Valbuena 5°', vintage: '2018', color: 'rouge', region: 'Castille-et-León', subRegion: 'Ribera del Duero', appellation: 'Ribera del Duero', country: 'Espagne', grapes: 'Tinto Fino, Merlot', buy: 110, qty: 6, apogee: [2024, 2038] },
   { key: 'radikon-oslavje', producer: 'Radikon', name: 'Oslavje', vintage: '2018', color: 'orange', region: 'Frioul', subRegion: 'Collio', appellation: 'IGT Venezia Giulia', country: 'Italie', grapes: 'Chardonnay, Sauvignon blanc, Pinot grigio', buy: 48, qty: 10, apogee: [2023, 2035] },
+  // ——— verticales prestige Bourgogne & références d'apogée (Hôtel 5★ & Gastronomie)
+  {
+    key: 'commaraine-clos-2017', producer: 'Château de La Commaraine', name: 'Pommard 1er Cru Clos de la Commaraine', vintage: '2017', color: 'rouge',
+    region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Pommard Premier Cru', country: FR, grapes: 'Pinot noir', buy: 68, qty: 8, apogee: [2021, 2026],
+    sheet: {
+      aop: 'Pommard Premier Cru (Monopole)', sol: 'Argilo-calcaire ferrugineux en pied de coteau', cepage: '100 % Pinot noir',
+      vinification: 'Vendange entière partielle, cuvaison douce en cuves bois', elevage: '16 mois en fûts de chêne français (30 % neufs)',
+      oeil: 'Rubis profond aux reflets grenat', nez: 'Cerise noire, pivoine fanée, épices douces et sous-bois noble', bouche: 'Veloutée et racée, tanins patinés, finale minérale persistante',
+      temperatureService: '16–17 °C', garde: "À son apogée jusqu'en 2026", accords: 'Pigeon rôti au jus corsé, filet de bœuf charolais, Époisses affiné',
+    },
+  },
+  { key: 'commaraine-clos-2018', producer: 'Château de La Commaraine', name: 'Pommard 1er Cru Clos de la Commaraine', vintage: '2018', color: 'rouge', region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Pommard Premier Cru', country: FR, grapes: 'Pinot noir', buy: 72, qty: 12, apogee: [2023, 2032], glass: 26 },
+  { key: 'commaraine-clos-2019', producer: 'Château de La Commaraine', name: 'Pommard 1er Cru Clos de la Commaraine', vintage: '2019', color: 'rouge', region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Pommard Premier Cru', country: FR, grapes: 'Pinot noir', buy: 78, qty: 18, apogee: [2025, 2036] },
+  { key: 'commaraine-clos-2021', producer: 'Château de La Commaraine', name: 'Pommard 1er Cru Clos de la Commaraine', vintage: '2021', color: 'rouge', region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Pommard Premier Cru', country: FR, grapes: 'Pinot noir', buy: 82, qty: 24, apogee: [2027, 2038] },
+  { key: 'leflaive-puligny-2018', producer: 'Domaine Leflaive', name: 'Puligny-Montrachet', vintage: '2018', color: 'blanc', region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Puligny-Montrachet', country: FR, grapes: 'Chardonnay', buy: 74, qty: 7, apogee: [2022, 2026] },
+  { key: 'leflaive-puligny-2019', producer: 'Domaine Leflaive', name: 'Puligny-Montrachet', vintage: '2019', color: 'blanc', region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Puligny-Montrachet', country: FR, grapes: 'Chardonnay', buy: 76, qty: 11, apogee: [2023, 2032] },
+  { key: 'roulot-luchets-2017', producer: 'Domaine Jean-Marc Roulot', name: 'Meursault Les Luchets', vintage: '2017', color: 'blanc', region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Meursault', country: FR, grapes: 'Chardonnay', buy: 88, qty: 6, apogee: [2020, 2025] },
+  { key: 'roulot-luchets-2021', producer: 'Domaine Jean-Marc Roulot', name: 'Meursault Les Luchets', vintage: '2021', color: 'blanc', region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Meursault', country: FR, grapes: 'Chardonnay', buy: 98, qty: 12, apogee: [2027, 2036] },
+  { key: 'vogue-chambolle-2014', producer: 'Domaine Comte Georges de Vogüé', name: 'Chambolle-Musigny 1er Cru', vintage: '2014', color: 'rouge', region: 'Bourgogne', subRegion: 'Côte de Nuits', appellation: 'Chambolle-Musigny Premier Cru', country: FR, grapes: 'Pinot noir', buy: 165, qty: 5, apogee: [2020, 2025] },
+  { key: 'coche-bourgogne-2016', producer: 'Domaine Coche-Dury', name: 'Bourgogne Blanc', vintage: '2016', color: 'blanc', region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Bourgogne', country: FR, grapes: 'Chardonnay', buy: 125, qty: 6, apogee: [2020, 2026] },
 ];
 
 /** Fournisseurs fictifs et régions qu'ils couvrent (répartition des réassorts). */

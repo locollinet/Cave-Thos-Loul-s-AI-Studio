@@ -21,7 +21,7 @@ export function Review({ initial, createdAt }: Props) {
   const t = useT();
   const nav = useNavigate();
   const { toast } = useToast();
-  const { org, orgId, sites, wines, producers, partners, member, commit } = useOrg();
+  const { org, orgId, sites, wines, producers, partners, stock, member, commit } = useOrg();
   const { rows: invoices } = useCollection<PurchaseInvoice>('purchaseInvoices');
   const [draft, setDraft] = useState<InvoiceDraft>(initial);
   const [busy, setBusy] = useState<'draft' | 'receive' | null>(null);
@@ -41,7 +41,7 @@ export function Review({ initial, createdAt }: Props) {
   const run = async (mode: 'draft' | 'receive') => {
     setBusy(mode);
     try {
-      const { ops } = buildInvoiceOps(draft, mode, { orgId, org, actor: { userId: member?.uid ?? '', userName: member?.name ?? '' }, wines, producers, partners }, createdAt);
+      const { ops } = buildInvoiceOps(draft, mode, { orgId, org, actor: { userId: member?.uid ?? '', userName: member?.name ?? '' }, wines, producers, partners, stock }, createdAt);
       await commit(ops);
       toast(t(mode === 'receive' ? 'achats.received' : 'achats.draftSaved'));
       nav('/achats');

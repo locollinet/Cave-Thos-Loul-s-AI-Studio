@@ -32,7 +32,7 @@ async function start() {
   const smallJson = express.json({ limit: '1mb' });
   const largeJson = express.json({ limit: '30mb' });
   app.use('/api', (req, res, next) => (LARGE_BODY_ROUTES.has(req.originalUrl.split('?')[0]) ? largeJson : smallJson)(req, res, next));
-  app.use('/api/pos', posRouter);
+  app.use('/api/pos', requireUser, posRouter);
   app.use('/api/ai/label', labelRouter);
   app.use('/api/ai/translate', translateRouter);
   app.use('/api/ai', aiRouter);

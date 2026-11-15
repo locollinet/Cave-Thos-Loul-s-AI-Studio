@@ -12,7 +12,7 @@ export const DEMO_BRAND: BrandTheme = {
   footer: 'Prix nets en euros, service compris. L’abus d’alcool est dangereux pour la santé, à consommer avec modération.',
 };
 
-const PINNED = ['leflaive-puligny', 'jamet-cote-rotie', 'peters-reserve'];
+const PINNED = ['commaraine-clos-2018', 'leflaive-puligny', 'jamet-cote-rotie', 'peters-reserve'];
 
 /** Charte « palace » de l'établissement et carte publiée qui la suit (instantané public inclus, comme `publishOps`). */
 export function buildCarte(

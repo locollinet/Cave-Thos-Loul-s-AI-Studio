@@ -38,9 +38,9 @@ export const NAV: NavItem[] = [
   { id: 'service', path: '/service', labelKey: 'nav.service', icon: GlassWater, module: 'carte', keywords: 'service salle verre au verre bouteilles ouvertes tablette' },
   { id: 'achats', path: '/achats', labelKey: 'nav.achats', icon: Truck, module: 'achats', roles: ['owner', 'manager', 'sommelier', 'accountant'], keywords: 'factures fournisseurs réception import ia' },
   { id: 'negoce', path: '/negoce', labelKey: 'nav.negoce', icon: ShoppingCart, module: 'negoce', roles: ['owner', 'manager', 'accountant'], keywords: 'devis factures clients dépôt-vente' },
-  { id: 'contacts', path: '/contacts', labelKey: 'nav.contacts', icon: Users, keywords: 'clients fournisseurs partenaires' },
+  { id: 'contacts', path: '/contacts', labelKey: 'nav.contacts', icon: Users, roles: ['owner', 'manager', 'sommelier', 'accountant'], keywords: 'clients fournisseurs partenaires' },
   { id: 'compta', path: '/compta', labelKey: 'nav.compta', icon: Calculator, module: 'compta', roles: ['owner', 'manager', 'accountant'], keywords: 'tva drm douane charges immobilisations fec' },
-  { id: 'pilotage', path: '/pilotage', labelKey: 'nav.pilotage', icon: BarChart3, module: 'pilotage', roles: ['owner', 'manager', 'accountant'], keywords: 'marges analyse stratégie' },
+  { id: 'pilotage', path: '/pilotage', labelKey: 'nav.pilotage', icon: BarChart3, module: 'pilotage', roles: ['owner', 'manager', 'sommelier', 'accountant'], keywords: 'marges analyse stratégie millésimes rotation' },
   { id: 'settings', path: '/reglages', labelKey: 'nav.settings', icon: Settings, roles: ['owner', 'manager'], keywords: 'organisation sites équipe paramètres' },
   { id: 'platform', path: '/plateforme', labelKey: 'nav.platform', icon: ShieldCheck, platformOnly: true, keywords: 'administration démos prospects console' },
 ];

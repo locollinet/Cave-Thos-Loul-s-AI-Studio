@@ -52,7 +52,7 @@ function AppRoutes() {
           <Route path="vins" element={<Guard id="wines"><Wines /></Guard>} />
           <Route path="stock" element={<Guard id="stock"><Stock /></Guard>} />
           <Route path="inventaire" element={<Guard id="inventory"><Inventory /></Guard>} />
-          <Route path="contacts" element={<Contacts />} />
+          <Route path="contacts" element={<Guard id="contacts"><Contacts /></Guard>} />
           <Route path="carte/*" element={<Guard id="carte"><Carte /></Guard>} />
           <Route path="service/*" element={<Guard id="service"><Service /></Guard>} />
           <Route path="achats/*" element={<Guard id="achats"><Achats /></Guard>} />
