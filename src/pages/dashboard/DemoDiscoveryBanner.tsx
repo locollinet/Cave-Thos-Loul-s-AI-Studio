@@ -88,7 +88,7 @@ const STEPS_BY_PROFILE: Record<OrgProfile, DiscoveryStep[]> = {
     {
       title: '1. Comparatif Multi-Établissements',
       desc: 'Visualisez la valeur de stock et les alertes de rupture site par site.',
-      to: '/',
+      to: '/pilotage?tab=sites',
       icon: Compass,
       badge: 'Direction',
     },

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
 import { today } from '@/lib/utils';
@@ -13,13 +14,35 @@ import WinesTab from './WinesTab';
 
 type Preset = 'month' | 'quarter' | 'year' | 'last12';
 type Tab = 'overview' | 'vintages' | 'wines' | 'breakdown' | 'sites' | 'replenish';
+const VALID_TABS = new Set<Tab>(['overview', 'vintages', 'wines', 'breakdown', 'sites', 'replenish']);
 
 export default function PilotageModule() {
   const { t, intl } = useI18n();
   const { orgId, org, sites, wines, stock, activeSiteId, can } = useOrg();
+  const [params, setParams] = useSearchParams();
+  const urlTab = params.get('tab') as Tab | null;
   const [preset, setPreset] = useState<Preset>('last12');
-  const [tab, setTab] = useState<Tab>('overview');
+  const [tab, setTab] = useState<Tab>(() => (urlTab && VALID_TABS.has(urlTab) ? urlTab : 'overview'));
   const [siteId, setSiteId] = useState(activeSiteId);
+
+  useEffect(() => {
+    const tParam = params.get('tab') as Tab | null;
+    if (tParam && VALID_TABS.has(tParam)) setTab(tParam);
+  }, [params]);
+
+  const switchTab = (next: Tab) => {
+    setTab(next);
+    setParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        if (next === 'overview') p.delete('tab');
+        else p.set('tab', next);
+        return p;
+      },
+      { replace: true },
+    );
+  };
+
   useEffect(() => {
     setSiteId(activeSiteId);
   }, [orgId, activeSiteId]);
@@ -57,7 +80,7 @@ export default function PilotageModule() {
       />
       <Tabs<Tab>
         value={tab}
-        onChange={setTab}
+        onChange={switchTab}
         tabs={[
           { value: 'overview', label: t('pilotage.tab.overview') },
           { value: 'vintages', label: 'Millésimes & Années' },
