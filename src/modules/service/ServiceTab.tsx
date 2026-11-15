@@ -7,7 +7,7 @@ import { stockByWine } from '@/data/stock';
 import { eur } from '@/lib/utils';
 import { formatLabel } from '@/lib/wine';
 import { Badge, Button, Card, EmptyState, cx } from '@/ui';
-import { glassesPerBottle, isServable, matchesQuery } from './logic';
+import { effectiveWineForSite, glassesPerBottle, isServable, matchesQuery } from './logic';
 import type { useServiceActions } from './useServiceActions';
 
 const MAX_RESULTS = 40;
@@ -17,9 +17,17 @@ export function ServiceTab({ siteId, actions, onOpened }: { siteId: string; acti
   const { wines, stock } = useOrg();
   const [q, setQ] = useState('');
   const qty = useMemo(() => stockByWine(stock, siteId), [stock, siteId]);
+  const levelByWine = useMemo(() => new Map(stock.filter((l) => l.siteId === siteId).map((l) => [l.wineId, l])), [stock, siteId]);
 
   const results = useMemo(() => {
-    const list = wines.filter((w) => !w.isArchived && (q.trim() ? matchesQuery(w, q) : (qty.get(w.id) ?? 0) > 0));
+    const list = wines
+      .filter((w) => {
+        if (w.isArchived) return false;
+        const level = levelByWine.get(w.id);
+        if (level?.hiddenOnSite) return false;
+        return q.trim() ? matchesQuery(w, q) : (qty.get(w.id) ?? 0) > 0;
+      })
+      .map((w) => effectiveWineForSite(w, levelByWine.get(w.id)));
     return list.sort(
       (a, b) =>
         Number((qty.get(b.id) ?? 0) > 0) - Number((qty.get(a.id) ?? 0) > 0) ||
@@ -27,7 +35,7 @@ export function ServiceTab({ siteId, actions, onOpened }: { siteId: string; acti
         a.producer.localeCompare(b.producer, intl) ||
         a.name.localeCompare(b.name, intl),
     );
-  }, [wines, q, qty, intl]);
+  }, [wines, q, qty, levelByWine, intl]);
   const shown = results.slice(0, MAX_RESULTS);
 
   return (
@@ -68,7 +76,7 @@ export function ServiceTab({ siteId, actions, onOpened }: { siteId: string; acti
         <ul className="grid gap-3 @5xl:grid-cols-2">
           {shown.map((w) => (
             <li key={w.id}>
-              <WineServiceCard wine={w} qty={qty.get(w.id) ?? 0} actions={actions} onOpened={onOpened} />
+              <WineServiceCard wine={w} qty={qty.get(w.id) ?? 0} bin={levelByWine.get(w.id)?.bin} actions={actions} onOpened={onOpened} />
             </li>
           ))}
         </ul>
@@ -78,7 +86,7 @@ export function ServiceTab({ siteId, actions, onOpened }: { siteId: string; acti
   );
 }
 
-function WineServiceCard({ wine: w, qty, actions, onOpened }: { wine: Wine; qty: number; actions: ReturnType<typeof useServiceActions>; onOpened: () => void }) {
+function WineServiceCard({ wine: w, qty, bin, actions, onOpened }: { wine: Wine; qty: number; bin?: string; actions: ReturnType<typeof useServiceActions>; onOpened: () => void }) {
   const { t, intl } = useI18n();
   const { org } = useOrg();
   const glass = isServable(w) ? w.byGlass : undefined;
@@ -90,8 +98,14 @@ function WineServiceCard({ wine: w, qty, actions, onOpened }: { wine: Wine; qty:
         <div className="min-w-0">
           <div className="truncate text-xs font-medium uppercase tracking-[0.14em] text-muted">{w.producer}</div>
           <div className="mt-0.5 font-display text-2xl leading-tight">{w.name}</div>
-          <div className="mt-1 text-sm text-muted">
-            {[w.vintage, formatLabel(w.formatCl), w.region].filter(Boolean).join(' · ')}
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted">
+            <span>{[w.vintage, formatLabel(w.formatCl), w.region].filter(Boolean).join(' · ')}</span>
+            {w.menuPriceTTC !== undefined && (
+              <span className="font-semibold text-ink">· {eur(w.menuPriceTTC, org.currency, intl)} TTC</span>
+            )}
+            {bin && (
+              <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-xs text-ink">📍 {bin}</span>
+            )}
           </div>
         </div>
         <div className="shrink-0 text-right">

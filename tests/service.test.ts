@@ -13,6 +13,7 @@ import {
   DAY,
   DEFAULT_FRESHNESS_DAYS,
   durationParts,
+  effectiveWineForSite,
   estimatedRevenue,
   freshness,
   freshnessAlerts,
@@ -20,6 +21,7 @@ import {
   glassesRemaining,
   HOUR,
   isoDay,
+  isServable,
   lossRate,
   matchesQuery,
   openDurationMs,
@@ -282,5 +284,16 @@ describe('données de démo', () => {
 
   it('ne fait rien sans vin au verre', () => {
     expect(buildServiceDemoOps('o1', 's1', [wine({ byGlass: undefined })], NOW)).toEqual([]);
+  });
+
+  it('applique les surcharges par site (menuPriceTTC, alertThreshold, byGlass)', () => {
+    const base = wine({ byGlass: undefined, menuPriceTTC: 100, alertThreshold: 4 });
+    expect(isServable(base)).toBe(false);
+    expect(isServable(base, { byGlass: true })).toBe(true);
+    const eff = effectiveWineForSite(base, { byGlass: true, menuPriceTTC: 120, alertThreshold: 2 });
+    expect(eff.menuPriceTTC).toBe(120);
+    expect(eff.alertThreshold).toBe(2);
+    expect(eff.byGlass).toEqual({ enabled: true, glassCl: 12.5, priceTTC: 24 });
+    expect(isServable(wine(), { byGlass: false })).toBe(false);
   });
 });

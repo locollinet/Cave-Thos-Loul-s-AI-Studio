@@ -16,7 +16,7 @@ import { RareBottleModal } from '@/components/bottles/RareBottleModal';
 import { buildMovementOps } from '@/data/stock';
 import type { Site } from '@/types';
 
-function Row({ k, v }: { k: string; v?: React.ReactNode }) {
+function Row({ k, v }: { k: React.ReactNode; v?: React.ReactNode }) {
   if (v === undefined || v === null || v === '') return null;
   return (
     <div className="flex justify-between items-center gap-4 border-b border-border/50 py-1.5 text-sm">
@@ -334,7 +334,15 @@ export function WineDrawer({ wine: wineProp, wineId, onClose }: { wine?: Wine; w
               return (
                 <Row
                   key={s.id}
-                  k={s.name}
+                  k={
+                    <span className="inline-flex flex-wrap items-center gap-1.5">
+                      <span>{s.name}</span>
+                      {l?.hiddenOnSite && <Badge tone="warn">Garde</Badge>}
+                      {l?.byGlass === true && <Badge tone="info">Verre</Badge>}
+                      {l?.menuPriceTTC !== undefined && <Badge>{eur(l.menuPriceTTC, 'EUR', intl)} TTC</Badge>}
+                      {l?.alertThreshold !== undefined && <span className="text-[11px] text-muted">(seuil {l.alertThreshold})</span>}
+                    </span>
+                  }
                   v={
                     <div className="flex items-center gap-2">
                       <span className="font-mono">{l?.qty ?? 0}</span>
@@ -342,12 +350,12 @@ export function WineDrawer({ wine: wineProp, wineId, onClose }: { wine?: Wine; w
                         type="button"
                         onClick={() => setQuickBinSite(s)}
                         className="text-xs font-mono text-muted hover:text-brand px-1.5 py-0.5 rounded hover:bg-surface-2 transition cursor-pointer"
-                        title="Modifier l'emplacement dans ce site"
+                        title="Modifier l'emplacement et les règles de ce site"
                       >
                         {l?.bin ? (
                           <span className="text-ink font-semibold">📍 {l.bin}</span>
                         ) : (
-                          <span className="italic text-muted/60">+ Emplacement</span>
+                          <span className="italic text-muted/60">+ Emplacement / Règles</span>
                         )}
                       </button>
                     </div>

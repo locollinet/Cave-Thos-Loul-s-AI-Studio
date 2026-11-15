@@ -4,7 +4,7 @@ import { useAuth } from '@/app/auth';
 import { useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
 import { Badge, Button, Card, Field, Input, Modal, PageHeader, Select, Table, Td, Th, useToast } from '@/ui';
-import { DEMO_MODELS, type DemoModel } from '@/data/demoSetup';
+import { DEMO_MODELS, type DemoModel } from '@/data/demoModels';
 import { uid } from '@/lib/utils';
 import type { Invite, Member, Org, OrgProfile, Site } from '@/types';
 import { emptyLegal } from '@/app/org';

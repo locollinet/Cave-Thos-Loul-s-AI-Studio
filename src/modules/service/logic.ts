@@ -1,4 +1,4 @@
-import type { Movement, Wine, WineColor } from '@/types';
+import type { Movement, StockLevel, Wine, WineColor } from '@/types';
 import type { Op } from '@/data/store';
 import { buildMovementOps, type Actor } from '@/data/stock';
 import { norm, wineLabel } from '@/lib/wine';
@@ -31,7 +31,30 @@ export const glassesPerBottle = (formatCl: number, glassCl: number): number =>
 export const glassesRemaining = (b: Pick<OpenBottle, 'glassesTotal' | 'glassesServed' | 'lostGlasses'>): number =>
   Math.max(0, b.glassesTotal - b.glassesServed - (b.lostGlasses ?? 0));
 
-export const isServable = (w: Wine): boolean => !!w.byGlass?.enabled && glassesPerBottle(w.formatCl, w.byGlass.glassCl) >= 1;
+/** Applique les surcharges éventuelles d'un site (`StockLevel`) sur la fiche `Wine`. */
+export function effectiveWineForSite(w: Wine, level?: Pick<StockLevel, 'alertThreshold' | 'menuPriceTTC' | 'byGlass'>): Wine {
+  if (!level || (level.alertThreshold === undefined && level.menuPriceTTC === undefined && level.byGlass === undefined)) {
+    return w;
+  }
+  const menuPriceTTC = level.menuPriceTTC !== undefined ? level.menuPriceTTC : w.menuPriceTTC;
+  const alertThreshold = level.alertThreshold !== undefined ? level.alertThreshold : w.alertThreshold;
+  let byGlass = w.byGlass;
+  if (level.byGlass === false) {
+    byGlass = w.byGlass ? { ...w.byGlass, enabled: false } : { enabled: false, glassCl: 12.5 };
+  } else if (level.byGlass === true) {
+    byGlass = {
+      enabled: true,
+      glassCl: w.byGlass?.glassCl || 12.5,
+      priceTTC: w.byGlass?.priceTTC ?? (menuPriceTTC ? Math.round(menuPriceTTC / 5) : undefined),
+    };
+  }
+  return { ...w, alertThreshold, menuPriceTTC, byGlass };
+}
+
+export const isServable = (w: Wine, level?: Pick<StockLevel, 'alertThreshold' | 'menuPriceTTC' | 'byGlass'>): boolean => {
+  const eff = effectiveWineForSite(w, level);
+  return !!eff.byGlass?.enabled && glassesPerBottle(eff.formatCl, eff.byGlass.glassCl) >= 1;
+};
 
 export const openDurationMs = (b: Pick<OpenBottle, 'openedAt' | 'closedAt'>, now = Date.now()): number =>
   Math.max(0, (b.closedAt ?? now) - b.openedAt);

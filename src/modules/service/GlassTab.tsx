@@ -6,7 +6,7 @@ import { stockByWine } from '@/data/stock';
 import { eur, pct } from '@/lib/utils';
 import { formatLabel } from '@/lib/wine';
 import { Badge, Button, Card, EmptyState, cx } from '@/ui';
-import { DAY, freshness, glassesPerBottle, glassesRemaining, isServable, lossRate, openDurationMs } from './logic';
+import { DAY, effectiveWineForSite, freshness, glassesPerBottle, glassesRemaining, isServable, lossRate, openDurationMs } from './logic';
 import { FreshnessBadge, GlassProgress, LossModal, useDuration } from './parts';
 import type { OpenBottle } from './types';
 import type { useServiceActions } from './useServiceActions';
@@ -18,6 +18,7 @@ export function GlassTab({ siteId, bottles, now, actions }: { siteId: string; bo
   const { wines, stock, org } = useOrg();
   const [lossFor, setLossFor] = useState<OpenBottle | null>(null);
   const qty = useMemo(() => stockByWine(stock, siteId), [stock, siteId]);
+  const levelByWine = useMemo(() => new Map(stock.filter((l) => l.siteId === siteId).map((l) => [l.wineId, l])), [stock, siteId]);
 
   const open = useMemo(
     () =>
@@ -30,9 +31,15 @@ export function GlassTab({ siteId, bottles, now, actions }: { siteId: string; bo
   const available = useMemo(
     () =>
       wines
-        .filter((w) => !w.isArchived && isServable(w) && !openIds.has(w.id))
+        .filter((w) => {
+          if (w.isArchived || openIds.has(w.id)) return false;
+          const level = levelByWine.get(w.id);
+          if (level?.hiddenOnSite) return false;
+          return isServable(w, level);
+        })
+        .map((w) => effectiveWineForSite(w, levelByWine.get(w.id)))
         .sort((a, b) => Number((qty.get(b.id) ?? 0) > 0) - Number((qty.get(a.id) ?? 0) > 0) || a.producer.localeCompare(b.producer, intl)),
-    [wines, openIds, qty, intl],
+    [wines, openIds, levelByWine, qty, intl],
   );
   const closed30 = useMemo(() => bottles.filter((b) => b.siteId === siteId && b.status !== 'open' && (b.closedAt ?? 0) >= now - 30 * DAY), [bottles, siteId, now]);
 

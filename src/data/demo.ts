@@ -1,4 +1,4 @@
-import type { OrgProfile, Partner, Producer, Site, StockLevel, Wine } from '@/types';
+import type { OrgProfile, Partner, Producer, RareBottle, Site, StockLevel, Wine } from '@/types';
 import type { Op } from './store';
 import type { WineList } from '@/modules/carte/types';
 import { canonicalKey } from '@/lib/wine';
@@ -282,35 +282,51 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
   }
 
   const rareBottleOps: Op[] = [
-    { key: 'drc-tache', number: '00418 / 01850', slot: 'ARM-R1-C1', level: 'normal', label: 'parfait', capsule: 'intacte', cbo: true, provenance: 'Allocation directe Domaine de la Romanée-Conti' },
-    { key: 'commaraine-clos-2017', number: '00112 / 02400', slot: 'ARM-R1-C2', level: 'normal', label: 'parfait', capsule: 'cire', cbo: true, provenance: 'Réserve historique du Château (Monopole)' },
-    { key: 'cristal', number: 'CR-2013-089', slot: 'ARM-R2-C1', level: 'normal', label: 'parfait', capsule: 'intacte', cbo: true, provenance: 'Maison Louis Roederer — Reims' },
-    { key: 'yquem', number: 'YQ-2014-014', slot: 'ARM-R2-C2', level: 'normal', label: 'parfait', capsule: 'intacte', cbo: false, provenance: 'Place de Bordeaux' },
+    { key: 'drc-tache', number: '00418 / 01850', bin: 'ARM-R1-C1', conditionLevel: 'goulot' as const, conditionLabel: 'parfaite' as const, conditionCapsule: 'integre' as const, cbo: true, provenance: 'Allocation directe Domaine de la Romanée-Conti' },
+    { key: 'commaraine-clos-2017', number: '00112 / 02400', bin: 'ARM-R1-C2', conditionLevel: 'goulot' as const, conditionLabel: 'parfaite' as const, conditionCapsule: 'ciree' as const, cbo: true, provenance: 'Réserve historique du Château (Monopole)' },
+    { key: 'cristal', number: 'CR-2013-089', bin: 'ARM-R2-C1', conditionLevel: 'goulot' as const, conditionLabel: 'parfaite' as const, conditionCapsule: 'integre' as const, cbo: true, provenance: 'Maison Louis Roederer — Reims' },
+    { key: 'yquem', number: 'YQ-2014-014', bin: 'ARM-R2-C2', conditionLevel: 'bas_goulot' as const, conditionLabel: 'parfaite' as const, conditionCapsule: 'integre' as const, cbo: false, provenance: 'Place de Bordeaux' },
   ].flatMap((b) => {
     const w = wineByKey.get(b.key);
     if (!w) return [];
     const id = `rb-${b.key}`;
+    const doc: RareBottle = {
+      id,
+      wineId: w.id,
+      siteId: mainSiteId,
+      bin: b.bin,
+      bottleNumber: b.number,
+      conditionLevel: b.conditionLevel,
+      conditionLabel: b.conditionLabel,
+      conditionCapsule: b.conditionCapsule,
+      cbo: b.cbo,
+      provenance: b.provenance,
+      status: 'in_cellar',
+      createdAt: created,
+      updatedAt: now,
+    };
     return [{
       op: 'set' as const,
       path: `${base}/bottles/${id}`,
-      data: {
-        id,
-        wineId: w.id,
-        siteId: mainSiteId,
-        slotCode: b.slot,
-        bottleNumber: b.number,
-        liquidLevel: b.level,
-        labelCondition: b.label,
-        capsuleCondition: b.capsule,
-        cbo: b.cbo,
-        provenance: b.provenance,
-        purchasePriceHT: w.buyPriceHT,
-        status: 'in_stock',
-        createdAt: created,
-        updatedAt: now,
-      },
+      data: doc as unknown as Record<string, unknown>,
     }];
   });
+
+  // Surcharges par site (Lot 4) pour illustrer Cave de garde vs Caveau / Bistrot vs Table Gastro
+  if (hospitality) {
+    const clos21 = wineByKey.get('commaraine-clos-2021');
+    const drc = wineByKey.get('drc-tache');
+    const clos19 = wineByKey.get('commaraine-clos-2019');
+    for (const s of stock) {
+      if ((s.wineId === clos21?.id || s.wineId === drc?.id) && s.siteId === mainSiteId) {
+        s.hiddenOnSite = true;
+      }
+      if (s.wineId === clos19?.id && bar && s.siteId === bar.id) {
+        s.byGlass = true;
+        s.alertThreshold = 3;
+      }
+    }
+  }
 
   ops.push(
     ...siteOps,

@@ -11,19 +11,20 @@ import { num } from '@/lib/utils';
 import { CHART, ChartFrame, ChartTooltip, axisProps, compactNumber, cursorProps, gridProps } from '@/modules/pilotage/charts';
 import { chainInsight, siteComparison } from './compute';
 import { DrinkingWindowPanel } from './CellarDashboard';
+import { MultiSiteConsolidationPanel, VintageAnalyticsPanel } from './VintageAnalyticsPanel';
 import { Invite, Ledger, MovementList, Panel, PanelLink, Skeleton } from './parts';
 import { Shell } from './Shell';
 
 export default function ChainDashboard() {
   const { t, intl } = useI18n();
   const navigate = useNavigate();
-  const { org, wines, stock, sites, hasModule, can, setActiveSiteId } = useOrg();
-  const recent = useCollection<Movement>('movements', { orderBy: ['createdAt', 'desc'], limit: 8 });
+  const { org, wines, stock, sites, hasModule, can, canSeeCosts, setActiveSiteId } = useOrg();
+  const recent = useCollection<Movement>('movements', { orderBy: ['createdAt', 'desc'], limit: 500 });
   const f0 = (n: number) => new Intl.NumberFormat(intl, { style: 'currency', currency: org.currency, maximumFractionDigits: 0 }).format(n);
 
   const live = useMemo(() => wines.filter((w) => !w.isArchived), [wines]);
   const allQty = useMemo(() => stockByWine(stock, 'all'), [stock]);
-  const cmp = useMemo(() => siteComparison(sites, live, stock), [sites, live, stock]);
+  const cmp = useMemo(() => siteComparison(sites, live, stock, org.defaultVatRate || 20), [sites, live, stock, org.defaultVatRate]);
   const siteName = (name: string, kind: string) => name || t(`site.${kind}`);
   const chartData = cmp.rows.map((r) => ({ name: siteName(r.site.name, r.site.kind), value: r.costHT, bottles: r.bottles }));
   const maxValue = Math.max(...chartData.map((d) => d.value));
@@ -163,6 +164,31 @@ export default function ChainDashboard() {
             </table>
           </div>
         </Panel>
+
+        <MultiSiteConsolidationPanel
+          sites={sites}
+          wines={live}
+          stock={stock}
+          movements={recent.rows}
+          currency={org.currency}
+          intl={intl}
+          vatRate={org.defaultVatRate || 20}
+          canSeeFinance={canSeeCosts}
+          onSelectSite={openSite}
+          className="lg:col-span-12"
+        />
+
+        <VintageAnalyticsPanel
+          wines={live}
+          stock={stock}
+          movements={recent.rows}
+          siteId="all"
+          currency={org.currency}
+          intl={intl}
+          vatRate={org.defaultVatRate || 20}
+          canSeeFinance={canSeeCosts}
+          className="lg:col-span-12"
+        />
 
         <DrinkingWindowPanel wines={live} qty={allQty} className="lg:col-span-7" />
 

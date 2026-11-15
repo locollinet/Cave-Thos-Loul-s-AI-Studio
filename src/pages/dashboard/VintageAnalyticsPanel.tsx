@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { AlertTriangle, ArrowLeftRight, Award, Building2, Flame, Layers, Sparkles, TrendingUp } from 'lucide-react';
+import { AlertTriangle, ArrowLeftRight, Award, Building2, Flame, GlassWater, Layers, Sparkles, TrendingUp } from 'lucide-react';
 import type { Movement, Site, StockLevel, Wine } from '@/types';
+import { useOrg } from '@/app/org';
 import { maturityRisk } from '@/data/stock';
 import { num } from '@/lib/utils';
 import { wineLabel } from '@/lib/wine';
 import { computeSiteActivity, computeVintageAnalytics } from '@/lib/vintageStats';
 import { CHART, ChartFrame, ChartLegend, ChartTooltip, axisProps, compactNumber, cursorProps, gridProps } from '@/modules/pilotage/charts';
-import { Badge, Segmented, cx } from '@/ui';
+import { Badge, Button, Segmented, cx, useToast } from '@/ui';
 import { COLOR_DOT } from '../Wines';
 import { Panel, PanelLink } from './parts';
 
@@ -39,8 +40,31 @@ export function VintageAnalyticsPanel({
 }) {
   const [tab, setTab] = useState<AnalyticsTab>('pyramid');
   const [metric, setMetric] = useState<PyramidMetric>('bottles');
+  const { commit, path, can } = useOrg();
+  const { toast } = useToast();
 
   const f0 = (n: number) => new Intl.NumberFormat(intl, { style: 'currency', currency, maximumFractionDigits: 0 }).format(n);
+
+  const enableByGlass = async (w: Wine) => {
+    const baseMenu = w.menuPriceTTC ?? (w.sellPriceHT ? w.sellPriceHT * (1 + vatRate / 100) : (w.buyPriceHT ?? 25) * 3.2);
+    const suggestedPrice = Math.max(8, Math.round(baseMenu / 5));
+    try {
+      await commit([
+        {
+          op: 'set',
+          path: path('wines', w.id),
+          data: {
+            byGlass: { enabled: true, glassCl: 12.5, priceTTC: suggestedPrice },
+            updatedAt: Date.now(),
+          },
+          merge: true,
+        },
+      ]);
+      toast(`${wineLabel(w)} activé au verre (${suggestedPrice} € TTC / 12,5 cl)`, 'ok');
+    } catch (e) {
+      toast((e as Error).message, 'bad');
+    }
+  };
 
   const stats = useMemo(
     () => computeVintageAnalytics(wines, stock, movements, { siteId, vatRate, preferMenuPrice: true }),
@@ -440,10 +464,30 @@ export function VintageAnalyticsPanel({
                       </td>
                       {canSeeFinance && <td className="tabular py-2.5 pr-3 text-right font-medium">{f0(r.costValueHT)}</td>}
                       <td className="py-2.5 text-right">
-                        <Badge tone={r.urgency === 'past' ? 'bad' : 'warn'}>
-                          <Flame className="mr-1 inline size-3" />
-                          {r.wine.byGlass?.enabled ? 'Pousser au verre' : 'Épingler / Passer au verre'}
-                        </Badge>
+                        {r.wine.byGlass?.enabled ? (
+                          <Link
+                            to="/service?tab=verre"
+                            className="inline-flex items-center gap-1 rounded-full bg-brand-soft px-2.5 py-1 text-[11px] font-semibold text-brand hover:bg-brand/20"
+                          >
+                            <GlassWater className="size-3" />
+                            <span>Au verre {r.wine.byGlass.priceTTC ? `(${r.wine.byGlass.priceTTC} €)` : ''} · Servir →</span>
+                          </Link>
+                        ) : can('sommelier') ? (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => void enableByGlass(r.wine)}
+                            icon={<GlassWater className="size-3.5 text-brand" />}
+                            title="Activer le service au verre (12,5 cl) avec tarif conseillé automatique"
+                          >
+                            Passer au verre ({Math.max(8, Math.round((r.wine.menuPriceTTC ?? (r.wine.buyPriceHT ?? 25) * 3.2) / 5))} €)
+                          </Button>
+                        ) : (
+                          <Badge tone={r.urgency === 'past' ? 'bad' : 'warn'}>
+                            <Flame className="mr-1 inline size-3" />
+                            À pousser au verre
+                          </Badge>
+                        )}
                       </td>
                     </tr>
                   ))}

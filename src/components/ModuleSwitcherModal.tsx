@@ -19,7 +19,7 @@ import { useAuth } from '@/app/auth';
 import { useI18n } from '@/i18n';
 import { Badge, Button, Card, Modal, useToast, cx } from '@/ui';
 import { MODULE_LIST, PROFILE_MODULES } from '@/registry';
-import { DEMO_MODELS, buildFullDemoOps } from '@/data/demoSetup';
+import { DEMO_MODELS } from '@/data/demoModels';
 import type { ModuleId, OrgProfile } from '@/types';
 
 export interface ModuleSwitcherModalProps {
@@ -119,6 +119,7 @@ export function ModuleSwitcherModal({ open, onClose }: { open: boolean; onClose:
 
     setReloadingDemo(true);
     try {
+      const { buildFullDemoOps } = await import('@/data/demoSetup');
       const mainSiteId = sites[0]?.id || 'cave-principale';
       const presetModules = PROFILE_MODULES[targetProfile];
       const setupOps = buildFullDemoOps(org.id, mainSiteId, targetProfile, {

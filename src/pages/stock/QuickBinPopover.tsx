@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Check, MapPin, X } from 'lucide-react';
+import { EyeOff, MapPin, SlidersHorizontal, X } from 'lucide-react';
 import type { CellarRack, Site, StockLevel, Wine } from '@/types';
 import { useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
@@ -22,10 +22,20 @@ export function QuickBinModal({
 }) {
   const { t } = useI18n();
   const { toast } = useToast();
-  const { wines, stock, commit, path } = useOrg();
+  const { wines, stock, commit, path, can } = useOrg();
   const [busy, setBusy] = useState(false);
   const [customBin, setCustomBin] = useState(level?.bin ?? '');
   const [selectedSlot, setSelectedSlot] = useState(level?.bin ?? '');
+  const [siteAlertThreshold, setSiteAlertThreshold] = useState<string>(
+    level?.alertThreshold !== undefined ? String(level.alertThreshold) : '',
+  );
+  const [siteMenuPriceTTC, setSiteMenuPriceTTC] = useState<string>(
+    level?.menuPriceTTC !== undefined ? String(level.menuPriceTTC) : '',
+  );
+  const [siteByGlass, setSiteByGlass] = useState<'inherit' | 'yes' | 'no'>(
+    level?.byGlass === true ? 'yes' : level?.byGlass === false ? 'no' : 'inherit',
+  );
+  const [hiddenOnSite, setHiddenOnSite] = useState<boolean>(!!level?.hiddenOnSite);
 
   const racks: CellarRack[] = site.layout?.racks ?? [];
   const winesById = new Map(wines.map((w) => [w.id, w]));
@@ -51,10 +61,33 @@ export function QuickBinModal({
     try {
       const sid = stockId(wine.id, site.id);
       const cleanBin = binToSave.trim();
+      const parsedThreshold = siteAlertThreshold.trim() !== '' ? Math.max(0, Number(siteAlertThreshold)) : undefined;
+      const parsedMenuPrice = siteMenuPriceTTC.trim() !== '' ? Math.max(0, Number(siteMenuPriceTTC)) : undefined;
+      const parsedByGlass = siteByGlass === 'yes' ? true : siteByGlass === 'no' ? false : undefined;
+
       // Ne touche jamais à la quantité d'une ligne existante (un mouvement concurrent l'aurait écrasée).
+      const overrides = {
+        alertThreshold: parsedThreshold !== undefined && !Number.isNaN(parsedThreshold) ? parsedThreshold : level?.alertThreshold !== undefined ? DELETE_FIELD : undefined,
+        menuPriceTTC: parsedMenuPrice !== undefined && !Number.isNaN(parsedMenuPrice) ? parsedMenuPrice : level?.menuPriceTTC !== undefined ? DELETE_FIELD : undefined,
+        byGlass: parsedByGlass !== undefined ? parsedByGlass : level?.byGlass !== undefined ? DELETE_FIELD : undefined,
+        hiddenOnSite: hiddenOnSite ? true : level?.hiddenOnSite ? DELETE_FIELD : undefined,
+      };
+      const cleanOverrides = Object.fromEntries(Object.entries(overrides).filter(([, v]) => v !== undefined));
+
       const data = level
-        ? { bin: cleanBin || DELETE_FIELD, updatedAt: Date.now() }
-        : { id: sid, wineId: wine.id, siteId: site.id, qty: 0, bin: cleanBin, updatedAt: Date.now() };
+        ? { bin: cleanBin || DELETE_FIELD, ...cleanOverrides, updatedAt: Date.now() }
+        : {
+            id: sid,
+            wineId: wine.id,
+            siteId: site.id,
+            qty: 0,
+            ...(cleanBin ? { bin: cleanBin } : {}),
+            ...(parsedThreshold !== undefined && !Number.isNaN(parsedThreshold) ? { alertThreshold: parsedThreshold } : {}),
+            ...(parsedMenuPrice !== undefined && !Number.isNaN(parsedMenuPrice) ? { menuPriceTTC: parsedMenuPrice } : {}),
+            ...(parsedByGlass !== undefined ? { byGlass: parsedByGlass } : {}),
+            ...(hiddenOnSite ? { hiddenOnSite: true } : {}),
+            updatedAt: Date.now(),
+          };
       await commit([{ op: 'set', path: path('stock', sid), data, merge: true }]);
       toast(t('common.saved'));
       onClose();
@@ -150,6 +183,66 @@ export function QuickBinModal({
             Astuce : vous pouvez entrer n'importe quel repère personnalisé ou sélectionner une alvéole dans le plan de cave.
           </p>
         </div>
+
+        {can('sommelier') && (
+          <div className="rounded-xl border border-border bg-surface-2/30 p-3.5 space-y-3">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-ink">
+              <SlidersHorizontal className="size-3.5 text-brand" />
+              <span>Règles & tarifs spécifiques à « {site.name} » (optionnel)</span>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Input
+                label="Prix carte TTC sur ce site (€)"
+                type="number"
+                step="0.5"
+                min="0"
+                value={siteMenuPriceTTC}
+                onChange={(e) => setSiteMenuPriceTTC(e.target.value)}
+                placeholder={wine.menuPriceTTC !== undefined ? `Défaut : ${wine.menuPriceTTC} €` : 'Ex: 95'}
+              />
+              <Input
+                label="Seuil d'alerte sur ce site (btl)"
+                type="number"
+                step="1"
+                min="0"
+                value={siteAlertThreshold}
+                onChange={(e) => setSiteAlertThreshold(e.target.value)}
+                placeholder={`Défaut : ${wine.alertThreshold ?? 0} btl`}
+              />
+            </div>
+
+            <Select
+              label="Service au verre sur ce site"
+              value={siteByGlass}
+              onChange={(e) => setSiteByGlass(e.target.value as 'inherit' | 'yes' | 'no')}
+            >
+              <option value="inherit">
+                Par défaut ({wine.byGlass?.enabled ? 'Activé sur la fiche vin' : 'Non servi au verre'})
+              </option>
+              <option value="yes">🥂 Servi au verre sur ce site (ex: Bar / Bistrot)</option>
+              <option value="no">🍾 Bouteille uniquement sur ce site (ex: Table Gastro)</option>
+            </Select>
+
+            <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border/70 bg-surface p-2.5 text-xs">
+              <input
+                type="checkbox"
+                checked={hiddenOnSite}
+                onChange={(e) => setHiddenOnSite(e.target.checked)}
+                className="mt-0.5 size-4 accent-brand"
+              />
+              <span>
+                <span className="flex items-center gap-1 font-medium text-ink">
+                  <EyeOff className="size-3.5 text-muted" />
+                  Cave de garde (masquer du mode Service en salle sur ce site)
+                </span>
+                <span className="mt-0.5 block text-[11px] text-muted">
+                  Empêche les serveurs de déstocker ce flacon par erreur depuis l'écran Service de ce site.
+                </span>
+              </span>
+            </label>
+          </div>
+        )}
       </div>
     </Modal>
   );
