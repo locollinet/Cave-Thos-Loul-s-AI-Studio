@@ -24,7 +24,7 @@ export default function SettingsPage() {
   const { t } = useI18n();
   const { org, can } = useOrg();
   const { user } = useAuth();
-  const canManageModules = !!user?.platformAdmin || !!user?.demo || !!org.isDemo;
+  const canManageModules = !!user?.isPlatformAdmin || !!user?.demo || !!org.isDemo;
   const [params] = useSearchParams();
   const wanted = params.get('tab') as SettingsTab | null;
   const [tab, setTab] = useState<SettingsTab>(wanted && SETTINGS_TABS.includes(wanted) ? wanted : 'org');

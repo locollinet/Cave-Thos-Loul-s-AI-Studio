@@ -509,7 +509,7 @@ export function MultiSiteConsolidationPanel({
   wines,
   stock,
   movements,
-  activeSiteId,
+  activeSiteId = 'all',
   onSelectSite,
   currency,
   intl,
@@ -521,7 +521,7 @@ export function MultiSiteConsolidationPanel({
   wines: Wine[];
   stock: StockLevel[];
   movements: Movement[];
-  activeSiteId: string | 'all';
+  activeSiteId?: string | 'all';
   onSelectSite: (siteId: string) => void;
   currency: string;
   intl: string;

@@ -232,6 +232,17 @@ export function resetLocalData(): void {
   listeners.forEach((s) => s.forEach((fn) => fn()));
 }
 
+/** Supprime les sous-collections locales d'une organisation spécifique (avant rechargement d'un profil démo). */
+export function resetLocalOrgData(orgId: string): void {
+  const prefix = `${LS}orgs/${orgId}/`;
+  Object.keys(localStorage)
+    .filter((k) => k.startsWith(prefix))
+    .forEach((k) => localStorage.removeItem(k));
+  listeners.forEach((s, coll) => {
+    if (coll.startsWith(`orgs/${orgId}/`)) s.forEach((fn) => fn());
+  });
+}
+
 /* ---------------------------------------------------------------- Firestore */
 
 // Les valeurs undefined sont retirées (en profondeur) : l'écriture ne dépend pas du réglage ignoreUndefinedProperties.

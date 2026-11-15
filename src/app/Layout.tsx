@@ -58,7 +58,7 @@ export function Layout() {
   const [moreOpen, setMoreOpen] = useState(false);
   const [modulesOpen, setModulesOpen] = useState(false);
   // Modifier l'organisation (modules, profil) : administrateur plateforme ou espace de démonstration.
-  const canManageModules = !!user?.platformAdmin || !!user?.demo || !!org.isDemo;
+  const canManageModules = !!user?.isPlatformAdmin || !!user?.demo || !!org.isDemo;
   const loc = useLocation();
   useAutoRepublish();
 

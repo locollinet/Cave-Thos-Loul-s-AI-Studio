@@ -20,7 +20,8 @@ import { useI18n } from '@/i18n';
 import { Badge, Button, Card, Modal, useToast, cx } from '@/ui';
 import { MODULE_LIST, PROFILE_MODULES } from '@/registry';
 import { DEMO_MODELS } from '@/data/demoModels';
-import type { ModuleId, OrgProfile } from '@/types';
+import { resetLocalOrgData, type Op } from '@/data/store';
+import type { Member, ModuleId, OrgProfile, Site } from '@/types';
 
 export interface ModuleSwitcherModalProps {
   open: boolean;
@@ -80,8 +81,8 @@ export const PRESET_PROFILES: ProfilePreset[] = [
 export function ModuleSwitcherModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useI18n();
   const { toast, confirm } = useToast();
-  const { org, updateOrg, store, sites } = useOrg();
-  const { demo } = useAuth();
+  const { org, updateOrg, store, sites, setActiveSiteId } = useOrg();
+  const { demo, user } = useAuth();
   const nav = useNavigate();
   const [reloadingDemo, setReloadingDemo] = useState(false);
 
@@ -122,20 +123,40 @@ export function ModuleSwitcherModal({ open, onClose }: { open: boolean; onClose:
       const { buildFullDemoOps } = await import('@/data/demoSetup');
       const mainSiteId = sites[0]?.id || 'cave-principale';
       const presetModules = PROFILE_MODULES[targetProfile];
+      const now = Date.now();
+      if (store.mode === 'local') {
+        resetLocalOrgData(org.id);
+      }
+      const mainSite: Site = {
+        id: mainSiteId,
+        name: targetProfile === 'restaurant' ? 'Cave du restaurant' : 'Cave principale',
+        kind: 'cave',
+        createdAt: now,
+      };
+      const baseOps: Op[] = [
+        { op: 'set', path: `orgs/${org.id}/sites/${mainSite.id}`, data: mainSite as never },
+      ];
+      if (user) {
+        const ownerDoc: Member = { uid: user.uid, email: user.email, name: user.name, role: 'owner', createdAt: now };
+        baseOps.push({ op: 'set', path: `orgs/${org.id}/members/${user.uid}`, data: ownerDoc as never });
+      }
       const setupOps = buildFullDemoOps(org.id, mainSiteId, targetProfile, {
         orgName: model.name,
         modules: presetModules,
         locale: org.locale || 'fr',
         defaultVatRate: org.defaultVatRate || 20,
         legal: org.legal,
+        actor: user ? { userId: user.uid, userName: user.name } : undefined,
+        sampleMembers: store.mode === 'local',
       });
 
-      await store.commit(setupOps, { allowChunking: true });
+      await store.commit([...baseOps, ...setupOps], { allowChunking: true });
       await updateOrg({
         name: model.name,
         profile: targetProfile,
         modules: presetModules,
       });
+      setActiveSiteId('all');
       toast(`Données démo de « ${model.name} » chargées avec succès !`, 'ok');
       onClose();
     } catch (e) {

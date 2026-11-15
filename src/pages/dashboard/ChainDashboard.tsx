@@ -170,6 +170,7 @@ export default function ChainDashboard() {
           wines={live}
           stock={stock}
           movements={recent.rows}
+          activeSiteId="all"
           currency={org.currency}
           intl={intl}
           vatRate={org.defaultVatRate || 20}

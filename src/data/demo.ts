@@ -1,4 +1,4 @@
-import type { OrgProfile, Partner, Producer, RareBottle, Site, StockLevel, Wine } from '@/types';
+import type { OrgProfile, Partner, Producer, RareBottle, Site, StockLevel, Wine, WineAllocation } from '@/types';
 import type { Op } from './store';
 import type { WineList } from '@/modules/carte/types';
 import { canonicalKey } from '@/lib/wine';
@@ -128,10 +128,15 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
   }
   if (profile === 'chaine') {
     mainSite.name = 'Le Grand Palais — Paris';
-    siteOps.push({ op: 'set', path: `${base}/sites/${mainSiteId}`, data: { name: mainSite.name }, merge: true });
     hotel = addSite('Hôtel du Lac — Annecy', 'restaurant');
     bar = addSite('Bar du Palais', 'bar');
   }
+  siteOps.unshift({
+    op: 'set',
+    path: `${base}/sites/${mainSiteId}`,
+    data: { layout: mainSite.layout, ...(profile === 'chaine' ? { name: mainSite.name } : {}) } as never,
+    merge: true,
+  });
 
   /* ---------------------------------------------------------- référentiel */
   const producers = new Map<string, Producer>();
@@ -312,6 +317,92 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
     }];
   });
 
+  const allocationOps: Op[] = (
+    [
+      {
+        id: 'alloc_commaraine_1',
+        producerName: 'Château de La Commaraine',
+        cuveeName: 'Pommard 1er Cru Clos de la Commaraine (Monopole)',
+        vintage: '2022',
+        formatCl: 75,
+        campaignYear: 2026,
+        quotaBottles: 36,
+        orderedBottles: 36,
+        receivedBottles: 24,
+        unitPriceHT: 82,
+        status: 'confirmed',
+        deadlineDate: '2026-11-30',
+        notes: 'Dotation prioritaire Tables du Château & Caveau (solde 12 btl à réceptionner).',
+        createdAt: now - 30 * 86_400_000,
+      },
+      {
+        id: 'alloc_drc_1',
+        producerName: 'Domaine de la Romanée-Conti',
+        cuveeName: 'La Tâche Grand Cru (Monopole)',
+        vintage: '2021',
+        formatCl: 75,
+        campaignYear: 2026,
+        quotaBottles: 6,
+        orderedBottles: 6,
+        receivedBottles: 6,
+        unitPriceHT: 1850,
+        status: 'delivered',
+        notes: 'Caisse bois scellée (CBO) reçue en cave voûtée centrale — flacons numérotés.',
+        createdAt: now - 60 * 86_400_000,
+      },
+      {
+        id: 'alloc_leflaive_1',
+        producerName: 'Domaine Leflaive',
+        cuveeName: 'Puligny-Montrachet & 1er Cru Clavoillon',
+        vintage: '2022',
+        formatCl: 75,
+        campaignYear: 2026,
+        quotaBottles: 24,
+        orderedBottles: 24,
+        receivedBottles: 12,
+        unitPriceHT: 135,
+        status: 'confirmed',
+        deadlineDate: '2026-12-15',
+        notes: '1re tranche livrée pour la verticale Table Gastronomique.',
+        createdAt: now - 40 * 86_400_000,
+      },
+      {
+        id: 'alloc_coche_1',
+        producerName: 'Domaine Coche-Dury',
+        cuveeName: 'Meursault & Bourgogne Blanc',
+        vintage: '2022',
+        formatCl: 75,
+        campaignYear: 2026,
+        quotaBottles: 12,
+        orderedBottles: 12,
+        receivedBottles: 6,
+        unitPriceHT: 380,
+        status: 'confirmed',
+        notes: 'Premier arrivage de 6 btl reçu.',
+        createdAt: now - 45 * 86_400_000,
+      },
+      {
+        id: 'alloc_roumier_1',
+        producerName: 'Domaine Georges Roumier',
+        cuveeName: 'Chambolle-Musigny 1er Cru Les Amoureuses',
+        vintage: '2022',
+        formatCl: 75,
+        campaignYear: 2026,
+        quotaBottles: 6,
+        orderedBottles: 6,
+        receivedBottles: 0,
+        unitPriceHT: 1100,
+        status: 'confirmed',
+        notes: 'Souscription primeur confirmée — livraison hiver.',
+        createdAt: now - 20 * 86_400_000,
+      },
+    ] satisfies WineAllocation[]
+  ).map((a) => ({
+    op: 'set' as const,
+    path: `${base}/allocations/${a.id}`,
+    data: json({ ...a, producerId: producers.get(a.producerName)?.id }),
+  }));
+
   // Surcharges par site (Lot 4) pour illustrer Cave de garde vs Caveau / Bistrot vs Table Gastro
   if (hospitality) {
     const clos21 = wineByKey.get('commaraine-clos-2021');
@@ -333,6 +424,7 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
     ...[...producers.values()].map((p): Op => ({ op: 'set', path: `${base}/producers/${p.id}`, data: p as never })),
     ...wines.map((w): Op => ({ op: 'set', path: `${base}/wines/${w.id}`, data: json(w) })),
     ...rareBottleOps,
+    ...allocationOps,
     ...suppliers.map(({ partner }): Op => ({ op: 'set', path: `${base}/partners/${partner.id}`, data: json(partner) })),
     ...[...clients.values()].map((c): Op => ({ op: 'set', path: `${base}/partners/${c.id}`, data: json(c) })),
     ...built.ops,
