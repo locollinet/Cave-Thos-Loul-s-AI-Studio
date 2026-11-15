@@ -208,7 +208,7 @@ export function PosReconciliationModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal
       open
-      size="xl"
+      size={lines.length > 0 ? '2xl' : 'xl'}
       onClose={onClose}
       title="Réconciliation Ventes de Caisse (Ticket Z / POS)"
       footer={
@@ -406,12 +406,12 @@ export function PosReconciliationModal({ onClose }: { onClose: () => void }) {
               )}
 
               <div className="overflow-hidden rounded-xl border border-border bg-surface">
-                <table className="w-full text-xs">
+                <table className="w-full table-fixed text-xs">
                   <thead>
                     <tr className="border-b border-border bg-surface-2/50 text-[10px] font-semibold uppercase tracking-wider text-muted">
                       <th className="py-2 pl-3 pr-2 text-left">Ligne Ticket Z &amp; Cuvée Rapprochée</th>
                       <th className="py-2 px-2 text-right w-20">Sortie</th>
-                      <th className="py-2 pl-1 pr-3 text-center w-10">État</th>
+                      <th className="py-2 pl-1 pr-3 text-center w-12">État</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border/60">
@@ -430,23 +430,30 @@ export function PosReconciliationModal({ onClose }: { onClose: () => void }) {
                             hoveredLineId === line.id ? 'bg-brand-soft/40' : 'hover:bg-surface-2/40',
                           )}
                         >
-                          <td className="py-2.5 pl-3 pr-2">
-                            <div className="flex items-center gap-2">
-                              <span className="font-semibold text-ink">{line.rawLabel}</span>
-                              {line.posCode && (
-                                <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-muted">
-                                  {line.posCode}
+                          <td className="py-2.5 pl-3 pr-2 min-w-0">
+                            <div className="flex flex-wrap items-center justify-between gap-1.5">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="font-semibold text-ink truncate">{line.rawLabel}</span>
+                                {line.posCode && (
+                                  <span className="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-muted">
+                                    {line.posCode}
+                                  </span>
+                                )}
+                              </div>
+                              {matchedWine && (
+                                <span className="shrink-0 rounded-md bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-muted">
+                                  Stock : <strong className="text-ink">{siteQty} btl</strong>
                                 </span>
                               )}
                             </div>
-                            <div className="mt-1 flex items-center gap-1.5 text-muted">
+                            <div className="mt-1.5 flex items-center gap-1.5 text-muted min-w-0">
                               <ChevronRight className="size-3 shrink-0 text-brand" />
                               <select
                                 aria-label={`Vin associé à ${line.rawLabel}`}
                                 value={line.matchedWineId ?? ''}
                                 onChange={(e) => associate(line.id, e.target.value)}
                                 className={cx(
-                                  'min-w-0 flex-1 rounded-md border bg-surface px-2 py-1 text-xs',
+                                  'w-full min-w-0 truncate rounded-md border bg-surface px-2 py-1 text-xs',
                                   matchedWine ? 'border-border text-ink' : 'border-warn/60 text-warn',
                                 )}
                               >
@@ -457,14 +464,9 @@ export function PosReconciliationModal({ onClose }: { onClose: () => void }) {
                                   </option>
                                 ))}
                               </select>
-                              {matchedWine && (
-                                <span className="shrink-0 font-mono text-[10px] text-muted">
-                                  (Stock site : {siteQty} btl)
-                                </span>
-                              )}
                             </div>
                           </td>
-                          <td className="py-2.5 px-2 text-right font-mono text-sm font-bold text-ink">
+                          <td className="py-2.5 px-2 text-right font-mono text-sm font-bold text-ink whitespace-nowrap">
                             −{line.qty} btl
                           </td>
                           <td className="py-2.5 pl-1 pr-3 text-center">

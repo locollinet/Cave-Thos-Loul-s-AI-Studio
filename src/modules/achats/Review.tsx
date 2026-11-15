@@ -119,7 +119,12 @@ export function Review({ initial, createdAt, filePreviewUrl, fileMimeType }: Pro
       </div>
 
       {/* Grille principale : Split-Screen (PDF à gauche | Données structurées à droite) */}
-      <div className={cx('grid gap-5 items-start', showPdf ? 'xl:grid-cols-[480px_1fr]' : 'grid-cols-1')}>
+      <div
+        className={cx(
+          'grid gap-4 items-start',
+          showPdf ? 'xl:grid-cols-[360px_minmax(0,1fr)] 2xl:grid-cols-[420px_minmax(0,1fr)]' : 'grid-cols-1',
+        )}
+      >
         {showPdf && (
           <div className="xl:sticky xl:top-16">
             <InvoicePdfPreview
@@ -202,18 +207,18 @@ export function Review({ initial, createdAt, filePreviewUrl, fileMimeType }: Pro
               </Button>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="overflow-hidden">
+              <table className="w-full table-fixed text-xs sm:text-sm">
                 <thead>
                   <tr className="border-b border-border bg-surface-2/40 text-[10px] font-semibold uppercase tracking-wider text-muted">
-                    <th className="py-2.5 pl-3 pr-2 text-left w-7">#</th>
-                    <th className="py-2.5 px-2 text-left min-w-[250px]">Cuvée extraite &amp; Rapprochement Référentiel</th>
-                    <th className="py-2.5 px-2 text-right w-20">{t('common.qty')}</th>
-                    <th className="py-2.5 px-2 text-right w-28">{t('achats.line.unitHT')}</th>
-                    <th className="py-2.5 px-2 text-left min-w-[175px]">Ancien PA ➔ Nouveau CMP</th>
-                    <th className="py-2.5 px-2 text-right w-20">TVA %</th>
-                    <th className="py-2.5 px-2 text-right w-28">Total HT</th>
-                    <th className="py-2.5 pl-1 pr-3 text-right w-16" />
+                    <th className="py-2.5 pl-2.5 pr-1 text-left w-6">#</th>
+                    <th className="py-2.5 px-1.5 text-left">Cuvée &amp; Rapprochement</th>
+                    <th className="py-2.5 px-1 text-right w-14">{t('common.qty')}</th>
+                    <th className="py-2.5 px-1 text-right w-20">PU HT</th>
+                    <th className="py-2.5 px-1.5 text-left w-36">PA ➔ CMP</th>
+                    <th className="py-2.5 px-1 text-right w-14">TVA</th>
+                    <th className="py-2.5 px-1.5 text-right w-20">Total HT</th>
+                    <th className="py-2.5 pl-0.5 pr-2 text-right w-11" />
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/70">
@@ -352,25 +357,25 @@ function InvoiceLineRow({
           line.choice === 'skip' && 'opacity-55',
         )}
       >
-        <td className="py-2.5 pl-3 pr-2 font-mono text-xs text-muted">{index}</td>
+        <td className="py-2.5 pl-2.5 pr-1 font-mono text-[11px] text-muted">{index}</td>
 
         {/* Cuvée extraite & Sélecteur de rapprochement */}
-        <td className="py-2.5 px-2">
-          <div className="flex items-center gap-1.5 mb-1">
+        <td className="py-2.5 px-1.5 min-w-0">
+          <div className="flex items-center gap-1.5 mb-1 min-w-0">
             {line.choice === 'match' ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
-                <CheckCircle2 className="size-3" /> Rapproché
+              <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">
+                <CheckCircle2 className="size-2.5" /> Rapproché
               </span>
             ) : line.choice === 'create' ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
-                + Nouvelle fiche
+              <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                + Nouvelle
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 text-[10px] font-medium text-muted">
+              <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] font-medium text-muted">
                 Ignoré
               </span>
             )}
-            <span className="truncate text-xs text-muted" title={line.description}>
+            <span className="truncate text-[11px] text-muted" title={line.description}>
               {line.description || t('achats.line.manual')}
             </span>
           </div>
@@ -379,7 +384,7 @@ function InvoiceLineRow({
             aria-label={t('achats.line.wine')}
             value={value}
             onChange={(e) => onSelect(e.target.value)}
-            className="h-8 text-xs py-1"
+            className="h-8 w-full min-w-0 truncate text-xs py-1"
           >
             {listed && selected && <option value={selected.id}>{wineLabel(selected)}</option>}
             {candidates.map((c) => (
@@ -394,34 +399,34 @@ function InvoiceLineRow({
         </td>
 
         {/* Quantité */}
-        <td className="py-2.5 px-2 text-right">
+        <td className="py-2.5 px-1 text-right">
           <NumberInput
             aria-label={t('common.qty')}
             min={0}
             step={1}
             value={line.qty}
             onChange={(v) => onChange({ qty: v ?? 0 })}
-            className="h-8 text-right font-mono text-xs"
+            className="h-8 w-full px-1.5 text-right font-mono text-xs"
           />
         </td>
 
         {/* Prix Unitaire HT */}
-        <td className="py-2.5 px-2 text-right">
+        <td className="py-2.5 px-1 text-right">
           <NumberInput
             aria-label={t('achats.line.unitHT')}
             min={0}
             step={0.01}
             value={line.unitPriceHT}
             onChange={(v) => onChange({ unitPriceHT: v ?? 0 })}
-            className="h-8 text-right font-mono text-xs"
+            className="h-8 w-full px-1.5 text-right font-mono text-xs"
           />
         </td>
 
         {/* Comparaison Ancien PA & Calcul automatique du Nouveau CMP */}
-        <td className="py-2.5 px-2">
+        <td className="py-2.5 px-1.5 min-w-0">
           {selected && lastPrice ? (
-            <div className="space-y-0.5 text-[11px]">
-              <div className="flex items-center gap-1.5">
+            <div className="space-y-0.5 text-[10.5px] leading-tight">
+              <div className="flex items-center gap-1 truncate">
                 <span className="text-muted">Anc. {eur(lastPrice, 'EUR', intl)}</span>
                 {Math.abs(priceDeltaPct) >= 0.1 ? (
                   <span className={cx('font-mono font-semibold', priceDeltaPct > 0 ? 'text-bad' : 'text-ok')}>
@@ -432,35 +437,34 @@ function InvoiceLineRow({
                   <span className="font-mono text-[10px] text-emerald-600">= Stable</span>
                 )}
               </div>
-              <div className="font-mono text-[11px] font-semibold text-ink">
+              <div className="font-mono text-[10.5px] font-semibold text-ink truncate">
                 CMP ➔ <span className="text-brand">{eur(nextCmp, 'EUR', intl)}</span>
-                <span className="ml-1 font-normal text-[10px] text-muted">({currentStockQty}+{line.qty} btl)</span>
               </div>
             </div>
           ) : (
-            <span className="text-[11px] text-muted italic">1er achat de cette réf.</span>
+            <span className="text-[10.5px] text-muted italic">1er achat</span>
           )}
         </td>
 
         {/* TVA % */}
-        <td className="py-2.5 px-2 text-right">
+        <td className="py-2.5 px-1 text-right">
           <NumberInput
             aria-label={t('achats.line.vat')}
             min={0}
             step={0.5}
             value={line.vatRate}
             onChange={(v) => onChange({ vatRate: v ?? 0 })}
-            className="h-8 text-right font-mono text-xs"
+            className="h-8 w-full px-1 text-right font-mono text-xs"
           />
         </td>
 
         {/* Total Ligne HT */}
-        <td className="py-2.5 px-2 text-right font-mono text-xs font-semibold tabular-nums text-ink">
+        <td className="py-2.5 px-1.5 text-right font-mono text-xs font-semibold tabular-nums text-ink whitespace-nowrap">
           {eur(round2(line.qty * line.unitPriceHT), 'EUR', intl)}
         </td>
 
         {/* Actions (Détails fiche / Supprimer) */}
-        <td className="py-2.5 pl-1 pr-3 text-right">
+        <td className="py-2.5 pl-0.5 pr-2 text-right">
           <div className="inline-flex items-center gap-1">
             {line.choice === 'create' && (
               <button

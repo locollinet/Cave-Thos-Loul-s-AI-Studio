@@ -265,7 +265,7 @@ export function Modal({
   title?: ReactNode;
   children: ReactNode;
   footer?: ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | 'full';
   side?: boolean; // tiroir latéral
   sheet?: boolean; // panneau montant depuis le bas sur mobile, tiroir latéral à partir de md
 }) {
@@ -314,8 +314,8 @@ export function Modal({
     };
   }, [open, titleId]);
   if (!open) return null;
-  const w = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl' }[size];
-  const mdW = { sm: 'md:max-w-sm', md: 'md:max-w-lg', lg: 'md:max-w-2xl', xl: 'md:max-w-4xl' }[size];
+  const w = { sm: 'max-w-sm', md: 'max-w-lg', lg: 'max-w-2xl', xl: 'max-w-4xl', '2xl': 'max-w-6xl', full: 'max-w-[95vw]' }[size];
+  const mdW = { sm: 'md:max-w-sm', md: 'md:max-w-lg', lg: 'md:max-w-2xl', xl: 'md:max-w-4xl', '2xl': 'md:max-w-6xl', full: 'md:max-w-[95vw]' }[size];
   return createPortal(
     <div className="no-print fixed inset-0 z-50 flex" role="dialog" aria-modal="true" aria-labelledby={title ? titleId : undefined}>
       <div className="absolute inset-0 bg-black/45 backdrop-blur-[2px]" onClick={onClose} />
