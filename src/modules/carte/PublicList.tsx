@@ -6,7 +6,7 @@ import { useI18n, type TFn } from '@/i18n';
 import { core } from '@/i18n/core';
 import { carte } from '@/i18n/carte';
 import { discovery } from '@/i18n/discovery';
-import { getStore } from '@/data/store';
+import { getStore, localStore } from '@/data/store';
 import { norm } from '@/lib/wine';
 import { ensureFonts, themeVars } from '@/lib/brand';
 import { AiPanel } from './AiPanel';
@@ -39,11 +39,42 @@ export default function PublicList() {
 
   useEffect(() => {
     setState({ status: 'loading' });
-    return getStore(false).subscribeDoc<PublicListDoc>(
+    const store = getStore(false);
+    let cancelled = false;
+    let fallback: (() => void) | undefined;
+    const subscribeLocal = () => {
+      if (store === localStore || fallback || cancelled) return false;
+      fallback = localStore.subscribeDoc<PublicListDoc>(
+        `public_lists/${publicId}`,
+        (d) => !cancelled && setState(d ? { status: 'ready', doc: d } : { status: 'missing' }),
+        () => !cancelled && setState({ status: 'error' }),
+      );
+      return true;
+    };
+    const unsub = store.subscribeDoc<PublicListDoc>(
       `public_lists/${publicId}`,
-      (doc) => setState(doc ? { status: 'ready', doc } : { status: 'missing' }),
-      () => setState({ status: 'error' }),
+      (doc) => {
+        if (cancelled) return;
+        if (doc) {
+          setState({ status: 'ready', doc });
+          return;
+        }
+        // Mode démo : une carte publiée en local n'existe que dans le stockage du navigateur.
+        if (subscribeLocal()) return;
+        setState({ status: 'missing' });
+      },
+      (e) => {
+        if (cancelled) return;
+        const isDenied = (e as { code?: string }).code === 'permission-denied';
+        if (isDenied && subscribeLocal()) return;
+        setState({ status: isDenied ? 'missing' : 'error' });
+      },
     );
+    return () => {
+      cancelled = true;
+      unsub();
+      fallback?.();
+    };
   }, [publicId]);
 
   const raw = state.status === 'ready' ? state.doc : null;

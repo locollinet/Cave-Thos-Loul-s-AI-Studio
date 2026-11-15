@@ -3,7 +3,7 @@ import { EyeOff, MapPin, SlidersHorizontal, X } from 'lucide-react';
 import type { CellarRack, Site, StockLevel, Wine } from '@/types';
 import { useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
-import { Button, Input, Modal, Select, useToast } from '@/ui';
+import { Button, Field, Input, Modal, Select, useToast } from '@/ui';
 import { stockId } from '@/data/stock';
 import { DELETE_FIELD } from '@/data/sentinels';
 import { generateRackSlots, matchSlotToStock } from '@/lib/cellar';
@@ -192,37 +192,40 @@ export function QuickBinModal({
             </div>
 
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Input
-                label="Prix carte TTC sur ce site (€)"
-                type="number"
-                step="0.5"
-                min="0"
-                value={siteMenuPriceTTC}
-                onChange={(e) => setSiteMenuPriceTTC(e.target.value)}
-                placeholder={wine.menuPriceTTC !== undefined ? `Défaut : ${wine.menuPriceTTC} €` : 'Ex: 95'}
-              />
-              <Input
-                label="Seuil d'alerte sur ce site (btl)"
-                type="number"
-                step="1"
-                min="0"
-                value={siteAlertThreshold}
-                onChange={(e) => setSiteAlertThreshold(e.target.value)}
-                placeholder={`Défaut : ${wine.alertThreshold ?? 0} btl`}
-              />
+              <Field label="Prix carte TTC sur ce site (€)">
+                <Input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  value={siteMenuPriceTTC}
+                  onChange={(e) => setSiteMenuPriceTTC(e.target.value)}
+                  placeholder={wine.menuPriceTTC !== undefined ? `Défaut : ${wine.menuPriceTTC} €` : 'Ex: 95'}
+                />
+              </Field>
+              <Field label="Seuil d'alerte sur ce site (btl)">
+                <Input
+                  type="number"
+                  step="1"
+                  min="0"
+                  value={siteAlertThreshold}
+                  onChange={(e) => setSiteAlertThreshold(e.target.value)}
+                  placeholder={`Défaut : ${wine.alertThreshold ?? 0} btl`}
+                />
+              </Field>
             </div>
 
-            <Select
-              label="Service au verre sur ce site"
-              value={siteByGlass}
-              onChange={(e) => setSiteByGlass(e.target.value as 'inherit' | 'yes' | 'no')}
-            >
-              <option value="inherit">
-                Par défaut ({wine.byGlass?.enabled ? 'Activé sur la fiche vin' : 'Non servi au verre'})
-              </option>
-              <option value="yes">🥂 Servi au verre sur ce site (ex: Bar / Bistrot)</option>
-              <option value="no">🍾 Bouteille uniquement sur ce site (ex: Table Gastro)</option>
-            </Select>
+            <Field label="Service au verre sur ce site">
+              <Select
+                value={siteByGlass}
+                onChange={(e) => setSiteByGlass(e.target.value as 'inherit' | 'yes' | 'no')}
+              >
+                <option value="inherit">
+                  Par défaut ({wine.byGlass?.enabled ? 'Activé sur la fiche vin' : 'Non servi au verre'})
+                </option>
+                <option value="yes">🥂 Servi au verre sur ce site (ex: Bar / Bistrot)</option>
+                <option value="no">🍾 Bouteille uniquement sur ce site (ex: Table Gastro)</option>
+              </Select>
+            </Field>
 
             <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-border/70 bg-surface p-2.5 text-xs">
               <input

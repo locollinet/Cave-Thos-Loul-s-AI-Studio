@@ -17,12 +17,12 @@ const GLASS_HINTS = ['verre', 'glass', 'coupe', 'degustation', 'dégustation'];
  * Sélectionne jusqu'à `max` vins pertinents sur une grande carte (> 150 références)
  * en combinant le score de pertinence vis-à-vis de la demande et un échantillonnage équilibré par section.
  */
-export function selectCandidateWinesForPrompt(
-  sections: { items: PublicItem[] }[],
+export function selectCandidateWinesForPrompt<T extends PublicItem & { pinned?: boolean }>(
+  sections: { items: T[] }[],
   queryText: string,
   budgetStr = '',
   max = 150,
-): PublicItem[] {
+): T[] {
   const all = sections.flatMap((s) => s.items);
   if (all.length <= max) return all;
 
@@ -34,7 +34,7 @@ export function selectCandidateWinesForPrompt(
   const wantsBubble = BUBBLE_HINTS.some((h) => q.includes(norm(h)));
   const wantsGlass = GLASS_HINTS.some((h) => q.includes(norm(h)));
 
-  const scoreItem = (item: PublicItem): number => {
+  const scoreItem = (item: T): number => {
     let score = item.pinned ? 4 : 0;
     const hay = norm([item.producer, item.name, item.region, item.grapes, item.vintage, item.note].filter(Boolean).join(' '));
     for (const tok of tokens) {
@@ -58,7 +58,7 @@ export function selectCandidateWinesForPrompt(
     .map((s) => s.items.map((item, idx) => ({ item, score: scoreItem(item), idx })).sort((a, b) => b.score - a.score || a.idx - b.idx))
     .filter((p) => p.length > 0);
 
-  const picked: PublicItem[] = [];
+  const picked: T[] = [];
   const cursors = pools.map(() => 0);
   while (picked.length < max) {
     let added = false;

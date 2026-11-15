@@ -40,7 +40,7 @@ export default function StockPage() {
 
   useEffect(() => {
     const t = params.get('tab');
-    if (t === 'cellar' || t === 'journal' || t === 'levels') setTab(t);
+    setTab(t === 'cellar' || t === 'journal' ? t : 'levels');
   }, [params]);
 
   useEffect(() => {
@@ -63,7 +63,16 @@ export default function StockPage() {
 
   const closeModal = () => {
     setModal(null);
-    if (params.has('new')) setParams({}, { replace: true });
+    if (params.has('new')) {
+      setParams(
+        (prev) => {
+          const p = new URLSearchParams(prev);
+          p.delete('new');
+          return p;
+        },
+        { replace: true },
+      );
+    }
   };
 
   const visibleSites = activeSiteId === 'all' ? sites : sites.filter((s) => s.id === activeSiteId);

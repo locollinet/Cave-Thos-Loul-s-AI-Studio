@@ -104,7 +104,7 @@ describe('consolidation multi-sites (computeSiteActivity)', () => {
 
 describe('pré-filtrage intelligent du Sommelier IA pour grandes cartes (> 150 vins)', () => {
   it('sélectionne les vins pertinents dans les dernières sections au-delà du 150e vin', () => {
-    const champagnes: PublicItem[] = Array.from({ length: 160 }, (_, i) => ({
+    const champagnes: (PublicItem & { wineId: string })[] = Array.from({ length: 160 }, (_, i) => ({
       wineId: `ch-${i}`,
       producer: 'Maison Champagne',
       name: `Brut ${i}`,
@@ -114,7 +114,7 @@ describe('pré-filtrage intelligent du Sommelier IA pour grandes cartes (> 150 v
       region: 'Champagne',
       priceTTC: 110,
     }));
-    const bourgognesRouges: PublicItem[] = [
+    const bourgognesRouges: (PublicItem & { wineId: string })[] = [
       {
         wineId: 'pommard-commaraine',
         producer: 'Château de La Commaraine',

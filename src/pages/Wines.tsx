@@ -65,10 +65,10 @@ export default function WinesPage() {
   const [shelfOpen, setShelfOpen] = useState(false);
 
   useEffect(() => {
-    if (params.get('new') === '1') setCreating(true);
+    if (params.get('new') === '1' && can('manager')) setCreating(true);
     const o = params.get('open');
     if (o) setOpenId(o);
-  }, [params]);
+  }, [params, can]);
 
   const qty = useMemo(() => stockByWine(stock, activeSiteId), [stock, activeSiteId]);
   const duplicateGroups = useMemo(() => findDuplicateGroups(wines), [wines]);
@@ -79,9 +79,22 @@ export default function WinesPage() {
   const canOffer = org.modules.includes('negoce') && can('manager');
   const canCarte = org.modules.includes('carte');
 
+  const clearWineParams = () => {
+    if (params.has('open') || params.has('new')) {
+      setParams(
+        (prev) => {
+          const p = new URLSearchParams(prev);
+          p.delete('open');
+          p.delete('new');
+          return p;
+        },
+        { replace: true },
+      );
+    }
+  };
   const open = (id: string | null) => {
     setOpenId(id);
-    if (params.has('open') || params.has('new')) setParams({}, { replace: true });
+    clearWineParams();
   };
   const opened = wines.find((w) => w.id === openId);
   const toggle = (id: string) => setSelected((prev) => {
@@ -315,7 +328,7 @@ export default function WinesPage() {
       {bulk === 'price' && <PriceModal wines={chosen} onClose={() => setBulk(null)} onDone={clear} />}
       {bulk === 'techSheet' && <BatchTechSheetModal wines={chosen.length > 0 ? chosen : pool} onClose={() => setBulk(null)} onDone={clear} />}
       {shelfOpen && <ShelfTalkerModal open={shelfOpen} onClose={() => setShelfOpen(false)} wines={chosen.length > 0 ? chosen : list} />}
-      {creating && <WineFormModal onClose={() => { setCreating(false); if (params.has('new')) setParams({}, { replace: true }); }} onSaved={(w) => setOpenId(w.id)} />}
+      {creating && can('manager') && <WineFormModal onClose={() => { setCreating(false); clearWineParams(); }} onSaved={(w) => setOpenId(w.id)} />}
       {importing && <ImportWinesModal onClose={() => setImporting(false)} />}
       {opened && <WineDrawer wine={opened} onClose={() => open(null)} />}
     </div>

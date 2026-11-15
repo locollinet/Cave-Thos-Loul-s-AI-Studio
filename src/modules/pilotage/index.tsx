@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
 import { today } from '@/lib/utils';
@@ -16,10 +16,13 @@ type Tab = 'overview' | 'vintages' | 'wines' | 'breakdown' | 'sites' | 'replenis
 
 export default function PilotageModule() {
   const { t, intl } = useI18n();
-  const { org, sites, wines, stock, activeSiteId, can } = useOrg();
+  const { orgId, org, sites, wines, stock, activeSiteId, can } = useOrg();
   const [preset, setPreset] = useState<Preset>('last12');
   const [tab, setTab] = useState<Tab>('overview');
   const [siteId, setSiteId] = useState(activeSiteId);
+  useEffect(() => {
+    setSiteId(activeSiteId);
+  }, [orgId, activeSiteId]);
   const period = useMemo(() => periodPresets(today())[preset], [preset]);
   const view = usePilotage(period, siteId);
   const liveWines = useMemo(() => wines.filter((w) => !w.isArchived), [wines]);

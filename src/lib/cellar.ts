@@ -120,8 +120,8 @@ export function getShortWineNeckLabel(wine: Wine): string {
 
 /** Indique si un vin est actuellement dans sa fenêtre d'apogée optimale. */
 export function isWineAtApogee(wine: Wine, currentYear = new Date().getFullYear()): boolean {
-  const from = wine.drinkFrom ?? (Number.isFinite(Number(wine.vintage)) ? Number(wine.vintage) + 3 : undefined);
-  const until = wine.drinkUntil ?? (Number.isFinite(Number(wine.vintage)) ? Number(wine.vintage) + 12 : undefined);
+  const from = wine.apogeeFrom ?? (Number.isFinite(Number(wine.vintage)) ? Number(wine.vintage) + 3 : undefined);
+  const until = wine.apogeeTo ?? (Number.isFinite(Number(wine.vintage)) ? Number(wine.vintage) + 12 : undefined);
   if (from && until) return currentYear >= from && currentYear <= until;
   if (from) return currentYear >= from;
   return false;

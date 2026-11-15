@@ -16,11 +16,19 @@ export default function InventoryPage() {
   const { t, intl } = useI18n();
   const { toast } = useToast();
   const { user } = useAuth();
-  const { sites, activeSiteId, commit, path } = useOrg();
+  const { orgId, sites, activeSiteId, commit, path } = useOrg();
   const { rows: sessions } = useCollection<InventorySession>('inventories', { orderBy: ['startedAt', 'desc'], limit: 50 });
   const [openId, setOpenId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [siteId, setSiteId] = useState(activeSiteId !== 'all' ? activeSiteId : sites[0]?.id ?? '');
+
+  useEffect(() => {
+    if (activeSiteId !== 'all' && sites.some((s) => s.id === activeSiteId)) {
+      setSiteId(activeSiteId);
+    } else {
+      setSiteId((prev) => (sites.some((s) => s.id === prev) ? prev : sites[0]?.id ?? ''));
+    }
+  }, [orgId, activeSiteId, sites]);
 
   const open = sessions.find((s) => s.id === openId);
   const start = async () => {

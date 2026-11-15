@@ -90,14 +90,32 @@ const BOTTLE_GLASS_STYLE: Record<
     miniDot: 'bg-pink-400 border-pink-200/80',
     label: 'Rosé',
   },
-  liquoreux: {
+  orange: {
+    bg: 'radial-gradient(circle at 32% 28%, #ea580c 0%, #9a3412 62%, #431407 100%)',
+    ring: 'border-orange-500/85 hover:border-orange-200',
+    capsule: '#FED7AA',
+    text: 'text-orange-50',
+    subtext: 'text-orange-100/90',
+    miniDot: 'bg-orange-400 border-orange-200/80',
+    label: 'Orange',
+  },
+  doux: {
     bg: 'radial-gradient(circle at 32% 28%, #d97706 0%, #78350f 62%, #3b1704 100%)',
     ring: 'border-amber-500/85 hover:border-amber-200',
     capsule: '#FDE68A',
     text: 'text-amber-50',
     subtext: 'text-amber-100/90',
-    miniDot: 'bg-orange-400 border-amber-200/80',
-    label: 'Liquoreux',
+    miniDot: 'bg-amber-500 border-amber-200/80',
+    label: 'Doux',
+  },
+  spiritueux: {
+    bg: 'radial-gradient(circle at 32% 28%, #b45309 0%, #713f12 62%, #361d06 100%)',
+    ring: 'border-amber-700/85 hover:border-amber-300',
+    capsule: '#FDE68A',
+    text: 'text-amber-50',
+    subtext: 'text-amber-200/90',
+    miniDot: 'bg-amber-700 border-amber-300/70',
+    label: 'Spiritueux',
   },
   autre: {
     bg: 'radial-gradient(circle at 32% 28%, #57534e 0%, #292524 65%, #1c1917 100%)',
@@ -428,7 +446,7 @@ export function CellarPlan({
     try {
       const freeSlots = allRackSlots.filter((sl) => !occupancyMap.has(normalizeBin(sl.code)));
       if (freeSlots.length === 0) {
-        toast('Ce meuble est déjà complet (aucune alvéole libre)', 'warn');
+        toast('Ce meuble est déjà complet (aucune alvéole libre)', 'info');
         return;
       }
 

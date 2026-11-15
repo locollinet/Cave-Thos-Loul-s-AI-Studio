@@ -50,7 +50,8 @@ export function Layout() {
   const { t, locale, setLocale } = useI18n();
   const { org, role, sites, activeSiteId, setActiveSiteId, orgs, switchOrg, hasModule, can, overrideRole, setOverrideRole } = useOrg();
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { toast } = useToast();
+  const { user, signOut, sendEmailVerificationNotice } = useAuth();
   const [dark, setDark] = useTheme();
   const whiteLabel = !!(org.brandApp && org.brand);
   useWhiteLabel(org.brand, whiteLabel, dark);
@@ -227,9 +228,9 @@ export function Layout() {
                 type="button"
                 className="underline hover:text-ink"
                 onClick={() => {
-                  user.email && import('./auth').then(() => {
-                    // trigger resend notice
-                  });
+                  sendEmailVerificationNotice()
+                    .then(() => toast(t('auth.verificationSent'), 'ok'))
+                    .catch((e) => toast(e instanceof Error ? e.message : t('common.error'), 'bad'));
                 }}
               >
                 {t('auth.resendVerification')}
@@ -304,7 +305,10 @@ export function Layout() {
               <button
                 key={a.to}
                 type="button"
-                onClick={() => navigate(a.to)}
+                onClick={() => {
+                  setFabOpen(false);
+                  navigate(a.to);
+                }}
                 className="flex min-h-16 items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-left text-sm font-medium active:bg-surface-2"
               >
                 <a.icon className="size-5 shrink-0 text-brand" />
@@ -342,7 +346,7 @@ export function Layout() {
               </button>
             )}
             {rest.map((n) => (
-              <NavLink key={n.id} to={n.path} className={linkCls}>
+              <NavLink key={n.id} to={n.path} onClick={() => setMoreOpen(false)} className={linkCls}>
                 <n.icon className="size-4.5" />
                 {t(n.labelKey)}
               </NavLink>
@@ -377,7 +381,7 @@ function CommandPalette({ open, onClose, onOpenModules }: { open: boolean; onClo
   const { t } = useI18n();
   const nav = useNavigate();
   const { toast } = useToast();
-  const { org, updateOrg, role, wines, hasModule, setOverrideRole } = useOrg();
+  const { org, updateOrg, role, wines, hasModule, can, setOverrideRole } = useOrg();
   const [q, setQ] = useState('');
   const [idx, setIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -391,7 +395,7 @@ function CommandPalette({ open, onClose, onOpenModules }: { open: boolean; onClo
   }, [open]);
 
   const cmds = useMemo<Cmd[]>(() => {
-    const pages: Cmd[] = NAV.filter((n) => isNavVisible(n, org.modules, role)).map((n) => ({
+    const pages: Cmd[] = NAV.filter((n) => isNavVisible(n, org.modules, role, !!onOpenModules)).map((n) => ({
       id: `p-${n.id}`,
       label: t(n.labelKey),
       group: t('nav.cmdkPages'),
@@ -474,38 +478,46 @@ function CommandPalette({ open, onClose, onOpenModules }: { open: boolean; onClo
         },
         hay: norm('profil negoce b2b factures devis douane drm compta'),
       },
-      {
-        id: 'a-wine',
-        label: 'Nouveau vin',
-        group: t('nav.cmdkActions'),
-        icon: <Plus className="size-4" />,
-        run: () => nav('/vins?new=1'),
-        hay: norm('nouveau vin'),
-      },
-      {
-        id: 'a-in',
-        label: 'Entrée de stock',
-        group: t('nav.cmdkActions'),
-        icon: <Plus className="size-4" />,
-        run: () => nav('/stock?new=in'),
-        hay: norm('entree de stock'),
-      },
-      {
-        id: 'a-out',
-        label: 'Sortie de stock',
-        group: t('nav.cmdkActions'),
-        icon: <Plus className="size-4" />,
-        run: () => nav('/stock?new=out'),
-        hay: norm('sortie de stock'),
-      },
-      {
-        id: 'a-inv',
-        label: 'Démarrer un inventaire',
-        group: t('nav.cmdkActions'),
-        icon: <Plus className="size-4" />,
-        run: () => nav('/inventaire'),
-        hay: norm('demarrer un inventaire'),
-      },
+      ...(hasModule('stock') && can('manager')
+        ? [
+            {
+              id: 'a-wine',
+              label: 'Nouveau vin',
+              group: t('nav.cmdkActions'),
+              icon: <Plus className="size-4" />,
+              run: () => nav('/vins?new=1'),
+              hay: norm('nouveau vin'),
+            },
+          ]
+        : []),
+      ...(hasModule('stock')
+        ? [
+            {
+              id: 'a-in',
+              label: 'Entrée de stock',
+              group: t('nav.cmdkActions'),
+              icon: <Plus className="size-4" />,
+              run: () => nav('/stock?new=in'),
+              hay: norm('entree de stock'),
+            },
+            {
+              id: 'a-out',
+              label: 'Sortie de stock',
+              group: t('nav.cmdkActions'),
+              icon: <Plus className="size-4" />,
+              run: () => nav('/stock?new=out'),
+              hay: norm('sortie de stock'),
+            },
+            {
+              id: 'a-inv',
+              label: 'Démarrer un inventaire',
+              group: t('nav.cmdkActions'),
+              icon: <Plus className="size-4" />,
+              run: () => nav('/inventaire'),
+              hay: norm('demarrer un inventaire'),
+            },
+          ]
+        : []),
       ...(hasModule('negoce') && ['owner', 'manager', 'accountant'].includes(role)
         ? [
             {
@@ -519,21 +531,23 @@ function CommandPalette({ open, onClose, onOpenModules }: { open: boolean; onClo
           ]
         : []),
     ];
-    const ws: Cmd[] = wines
-      .filter((w) => !w.isArchived)
-      .map((w) => ({
-        id: `w-${w.id}`,
-        label: wineLabel(w),
-        hint: w.region,
-        group: t('nav.cmdkWines'),
-        icon: <WineIcon className="size-4" />,
-        run: () => nav(`/vins?open=${w.id}`),
-        hay: norm(`${w.producer} ${w.name} ${w.vintage} ${w.region ?? ''} ${w.grapes ?? ''}`),
-      }));
-    // Actions qui modifient l'organisation : seulement si l'utilisateur peut gérer les modules.
-    const orgActions = new Set(['a-modules', 'a-all-modules', 'a-preset-rest', 'a-preset-negoce']);
-    return [...actions.filter((a) => onOpenModules || !orgActions.has(a.id)), ...pages, ...ws];
-  }, [org.modules, role, wines, t, nav, hasModule, onOpenModules]);
+    const ws: Cmd[] = hasModule('stock')
+      ? wines
+          .filter((w) => !w.isArchived)
+          .map((w) => ({
+            id: `w-${w.id}`,
+            label: wineLabel(w),
+            hint: w.region,
+            group: t('nav.cmdkWines'),
+            icon: <WineIcon className="size-4" />,
+            run: () => nav(`/vins?open=${w.id}`),
+            hay: norm(`${w.producer} ${w.name} ${w.vintage} ${w.region ?? ''} ${w.grapes ?? ''}`),
+          }))
+      : [];
+    // Actions d'organisation et simulation de rôle : réservées à l'environnement démo / admin plateforme.
+    const demoActions = new Set(['a-role-staff', 'a-role-sommelier', 'a-role-owner', 'a-modules', 'a-all-modules', 'a-preset-rest', 'a-preset-negoce']);
+    return [...actions.filter((a) => onOpenModules || !demoActions.has(a.id)), ...pages, ...ws];
+  }, [org.modules, role, wines, t, nav, hasModule, can, onOpenModules]);
 
   const results = useMemo(() => {
     const terms = norm(q).split(' ').filter(Boolean);

@@ -45,6 +45,7 @@ const TYPES: DocType[] = ['quote', 'invoice', 'credit_note'];
 export default function DocumentEditor() {
   const { id = 'new' } = useParams();
   const [sp] = useSearchParams();
+  const navigate = useNavigate();
   const offerId = id === 'new' ? sp.get('offer') : null;
   const { t } = useI18n();
   const { docs, loading } = useSales();
@@ -53,7 +54,7 @@ export default function DocumentEditor() {
 
   if (id !== 'new' && loading) return <Spinner className="mx-auto mt-20" />;
   if (offerId && offersLoading) return <Spinner className="mx-auto mt-20" />;
-  if (id !== 'new' && !existing) return <EmptyState title={t('negoce.notFound')} />;
+  if (id !== 'new' && !existing) return <EmptyState title={t('negoce.notFound')} action={<Button onClick={() => navigate('/negoce')}>{t('common.back')}</Button>} />;
   if (existing && isLocked(existing)) return <Navigate to={`/negoce/view/${existing.id}`} replace />;
   return <EditorInit existing={existing} offer={offerId ? offers.find((o) => o.id === offerId) : undefined} type={sp.get('type') ?? ''} clientId={sp.get('client') ?? ''} />;
 }
@@ -72,7 +73,7 @@ function EditorInit({ existing, offer, type: rawType, clientId }: { existing?: S
     const snap = partnerSnapshot(client);
     return { ...doc, ...snap, dueDate: dueDateFor(doc.date, snap.paymentTermsDays) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [existing?.id, offer?.id]);
+  }, [existing?.id, offer?.id, rawType, clientId]);
   return <EditorForm key={initial.id} initial={initial} isNew={!existing} />;
 }
 
@@ -89,7 +90,7 @@ const useMedia = (query: string): boolean => {
 
 function EditorForm({ initial, isNew }: { initial: SaleDocument; isNew: boolean }) {
   const { t } = useI18n();
-  const { org, orgId, sites, partners, stock, wines, commit, store, can, role } = useOrg();
+  const { org, orgId, sites, activeSiteId, partners, stock, wines, commit, store, can, role } = useOrg();
   const showMargin = can('manager') || role === 'accountant';
   const wide = useMedia('(min-width: 1280px)');
   const [preview, setPreview] = useState(false);
@@ -99,6 +100,13 @@ function EditorForm({ initial, isNew }: { initial: SaleDocument; isNew: boolean 
   const navigate = useNavigate();
   const [doc, setDoc] = useState<SaleDocument>(initial);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!doc.siteId && sites.length > 0) {
+      const preferred = activeSiteId !== 'all' && sites.some((s) => s.id === activeSiteId) ? activeSiteId : sites[0].id;
+      setDoc((d) => (d.siteId ? d : { ...d, siteId: preferred }));
+    }
+  }, [doc.siteId, sites, activeSiteId]);
 
   const totals = useMemo(() => computeTotals(doc.lines, doc.shippingHT, doc.shippingVatRate, doc.discountPct), [doc.lines, doc.shippingHT, doc.shippingVatRate, doc.discountPct]);
   const partner = partners.find((p) => p.id === doc.partnerId);

@@ -36,7 +36,7 @@ export default function OfferEditor() {
     const o = newOffer({ date: today(), lang: org.locale ?? 'fr', userId: member?.uid, partner });
     return { ...o, items: itemsFromWineIds(winesParam.split(',').filter(Boolean), wines, partner) };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [existing?.id, id]);
+  }, [existing?.id, id, winesParam, clientParam]);
 
   if (id !== 'new' && loading) return <Spinner className="mx-auto mt-20" />;
   if (id !== 'new' && !existing) return <EmptyState title={t('offer.notFound')} action={<Link to="/negoce/offres" className="text-brand underline">{t('common.back')}</Link>} />;

@@ -48,11 +48,11 @@ export default function SettingsPage() {
         ]}
       />
       {tab === 'org' && <OrgTab />}
-      {tab === 'identity' && <IdentityTab />}
+      {tab === 'identity' && can('manager') && <IdentityTab />}
       {tab === 'modules' && canManageModules && <ModulesTab />}
       {tab === 'sites' && <SitesTab />}
       {tab === 'producers' && <ProducersTab />}
-      {tab === 'team' && <TeamTab />}
+      {tab === 'team' && can('owner') && <TeamTab />}
       {tab === 'data' && <DataTab />}
     </div>
   );

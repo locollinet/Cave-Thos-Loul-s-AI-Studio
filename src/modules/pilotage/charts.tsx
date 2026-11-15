@@ -6,6 +6,7 @@ import { cx } from '@/ui';
 export const CHART = {
   brand: 'var(--brand)',
   accent: 'var(--accent)',
+  ok: 'var(--ok)',
   muted: 'var(--muted)',
   border: 'var(--border)',
   surface: 'var(--surface)',

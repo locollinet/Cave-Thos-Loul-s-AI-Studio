@@ -41,12 +41,13 @@ export function WineDrawer({ wine: wineProp, wineId, onClose }: { wine?: Wine; w
   const [move, setMove] = useState<'in' | 'out' | null>(null);
   const [quickBinSite, setQuickBinSite] = useState<Site | null>(null);
 
+  const levels = useMemo(() => (wine ? stock.filter((l) => l.wineId === wine.id) : []), [stock, wine?.id]);
+  const bottles = useMemo(() => (wine ? allBottles.filter((b) => b.wineId === wine.id) : []), [allBottles, wine?.id]);
+  const history = useMemo(() => (wine ? movements.filter((m) => m.wineId === wine.id).slice(0, 8) : []), [movements, wine?.id]);
+
   if (!wine) return null;
 
-  const levels = useMemo(() => stock.filter((l) => l.wineId === wine.id), [stock, wine.id]);
-  const bottles = useMemo(() => allBottles.filter((b) => b.wineId === wine.id), [allBottles, wine.id]);
   const total = levels.reduce((a, l) => a + l.qty, 0);
-  const history = useMemo(() => movements.filter((m) => m.wineId === wine.id).slice(0, 8), [movements, wine.id]);
   const margin = wine.buyPriceHT && wine.sellPriceHT ? ((wine.sellPriceHT - wine.buyPriceHT) / wine.sellPriceHT) * 100 : undefined;
   const ts = wine.technicalSheet;
 

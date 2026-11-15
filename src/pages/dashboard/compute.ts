@@ -343,15 +343,15 @@ export interface SiteTotals {
   low: number;
 }
 
-export function siteComparison(sites: Site[], wines: Wine[], stock: StockLevel[]): { rows: SiteRow[]; total: SiteTotals } {
+export function siteComparison(sites: Site[], wines: Wine[], stock: StockLevel[], vatRate = 20): { rows: SiteRow[]; total: SiteTotals } {
   const live = wines.filter((w) => !w.isArchived);
   const byId = new Map(live.map((w) => [w.id, w]));
-  const all = stockValue(live, stock, 'all');
+  const all = stockValue(live, stock, 'all', vatRate);
   const allQty = stockByWine(stock, 'all');
   const rows = sites
     .filter((s) => !s.isArchived)
     .map((site) => {
-      const v = stockValue(live, stock, site.id);
+      const v = stockValue(live, stock, site.id, vatRate);
       let out = 0;
       let low = 0;
       let refs = 0;
