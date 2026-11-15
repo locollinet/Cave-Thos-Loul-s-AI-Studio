@@ -369,10 +369,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [dlg, setDlg] = useState<{ title: string; message?: string; confirmLabel?: string; danger?: boolean; resolve: (v: boolean) => void } | null>(null);
   const n = useRef(0);
+  const dismiss = useCallback((id: number) => {
+    setToasts((all) => all.filter((x) => x.id !== id));
+  }, []);
   const toast = useCallback<ToastApi['toast']>((text, tone = 'ok', action) => {
     const id = ++n.current;
-    setToasts((t) => [...t, { id, tone, text, action }]);
-    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), action ? 7000 : 4200);
+    // Maximum 2 notifications simultanées pour ne jamais encombrer l'écran
+    setToasts((t) => [...t.slice(-1), { id, tone, text, action }]);
+    setTimeout(() => setToasts((t) => t.filter((x) => x.id !== id)), action ? 4000 : 2400);
   }, []);
   const confirm = useCallback<ToastApi['confirm']>((o) => new Promise((resolve) => setDlg({ ...o, resolve })), []);
   const api = useMemo(() => ({ toast, confirm }), [toast, confirm]);
@@ -384,23 +388,57 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     <ToastCtx.Provider value={api}>
       {children}
       {createPortal(
-        <div className="no-print pointer-events-none fixed inset-x-0 bottom-36 z-[60] flex flex-col items-center gap-2 px-4 md:bottom-24">
+        <div className="no-print pointer-events-none fixed top-14 right-4 z-[60] flex max-w-sm flex-col items-end gap-2 sm:max-w-md">
           {toasts.map((t) => (
-            <div key={t.id} className="animate-in pointer-events-auto flex max-w-md items-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm shadow-lg">
-              {t.tone === 'ok' ? <CheckCircle2 className="size-4 text-ok" /> : t.tone === 'bad' ? <TriangleAlert className="size-4 text-bad" /> : <Info className="size-4 text-info" />}
-              {t.text}
+            <div
+              key={t.id}
+              role="status"
+              className={cx(
+                'animate-in pointer-events-auto flex items-center gap-2.5 rounded-2xl border px-3.5 py-2.5 text-xs font-medium shadow-2xl backdrop-blur-md transition-all',
+                t.tone === 'bad'
+                  ? 'border-rose-500/40 bg-[#261115]/95 text-rose-50'
+                  : 'border-[#EAC986]/35 bg-[#1E1315]/95 text-[#FDF8F0]',
+              )}
+            >
+              <span
+                className={cx(
+                  'flex size-5 shrink-0 items-center justify-center rounded-full',
+                  t.tone === 'ok'
+                    ? 'bg-emerald-500/20 text-emerald-400'
+                    : t.tone === 'bad'
+                      ? 'bg-rose-500/25 text-rose-400'
+                      : 'bg-amber-500/20 text-[#EAC986]',
+                )}
+              >
+                {t.tone === 'ok' ? (
+                  <Check className="size-3.5 stroke-[2.5]" />
+                ) : t.tone === 'bad' ? (
+                  <TriangleAlert className="size-3.5" />
+                ) : (
+                  <Info className="size-3.5" />
+                )}
+              </span>
+              <span className="leading-snug">{t.text}</span>
               {t.action && (
                 <button
                   type="button"
-                  className="ml-2 rounded-md px-2 py-0.5 text-sm font-semibold text-brand hover:bg-surface-2"
+                  className="ml-1 shrink-0 rounded-lg border border-[#EAC986]/40 bg-[#EAC986]/15 px-2.5 py-1 text-xs font-semibold text-[#EAC986] transition hover:bg-[#EAC986] hover:text-[#1E1315] cursor-pointer"
                   onClick={() => {
-                    setToasts((all) => all.filter((x) => x.id !== t.id));
+                    dismiss(t.id);
                     t.action?.onClick();
                   }}
                 >
                   {t.action.label}
                 </button>
               )}
+              <button
+                type="button"
+                aria-label="Fermer la notification"
+                onClick={() => dismiss(t.id)}
+                className="ml-0.5 shrink-0 rounded-full p-1 text-white/50 transition hover:bg-white/10 hover:text-white cursor-pointer"
+              >
+                <X className="size-3.5" />
+              </button>
             </div>
           ))}
         </div>,

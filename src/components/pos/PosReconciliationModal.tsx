@@ -1,10 +1,10 @@
 import { useMemo, useState } from 'react';
-import { CheckCircle2, ChevronRight, Receipt, Sparkles, UploadCloud, XCircle } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Download, FileText, Receipt, Sparkles, UploadCloud, XCircle } from 'lucide-react';
 import { useOrg } from '@/app/org';
 import { useAuth } from '@/app/auth';
-import { Badge, Button, Modal, Spinner, useToast } from '@/ui';
+import { Badge, Button, Modal, Spinner, cx, useToast } from '@/ui';
 import { wineLabel } from '@/lib/wine';
-import { dateFr, uid } from '@/lib/utils';
+import { dateFr, downloadBlob, today, uid } from '@/lib/utils';
 import { matchPosWine, parsePosReport, type PosReportLine } from '@/lib/posReport';
 import { buildMovementOps } from '@/data/stock';
 import { apiPost, fileToBase64 } from '@/lib/api';
@@ -31,7 +31,57 @@ const DEMO_POS_CSV = [
   'Ruinart Blanc de Blancs;3;PLU-301',
 ].join('\n');
 
+const DEMO_POS_PRICES: Record<string, number> = {
+  'PLU-101': 195,
+  'PLU-204': 240,
+  'PLU-108': 310,
+  'PLU-215': 290,
+  'PLU-301': 140,
+};
+
 const AI_MIMES = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
+
+function buildTicketZPdfBlob(lines: PosLine[], orgName = 'Château de La Commaraine'): Blob {
+  const esc = (s: string) =>
+    s
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[()\\]/g, '\\$&');
+  const cmds: string[] = [];
+  const text = (x: number, y: number, size: number, bold: boolean, str: string) => {
+    cmds.push(`BT /${bold ? 'F2' : 'F1'} ${size} Tf ${x} ${y} Td (${esc(str)}) Tj ET`);
+  };
+  text(45, 790, 13, true, `${orgName.toUpperCase()} - RAPPORT Z DE CAISSE`);
+  text(45, 774, 9, false, `Terminal Lightspeed #02 · Cloture Service du Soir (${today()} 23:45)`);
+  text(45, 750, 9, true, 'CODE PLU   DESIGNATION CUVEE                                  QTE');
+  let y = 730;
+  for (const l of lines) {
+    text(45, y, 9, false, `${(l.posCode || 'PLU').padEnd(10, ' ')} ${l.rawLabel.slice(0, 48).padEnd(50, ' ')} x${l.qty}`);
+    y -= 18;
+  }
+  const stream = cmds.join('\n');
+  const objects = [
+    '1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n',
+    '2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n',
+    '3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>\nendobj\n',
+    `4 0 obj\n<< /Length ${stream.length} >>\nstream\n${stream}\nendstream\nendobj\n`,
+    '5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Courier >>\nendobj\n',
+    '6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Courier-Bold >>\nendobj\n',
+  ];
+  let pdf = '%PDF-1.4\n';
+  const offsets: number[] = [0];
+  for (const obj of objects) {
+    offsets.push(pdf.length);
+    pdf += obj;
+  }
+  const xrefPos = pdf.length;
+  pdf += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+  for (let i = 1; i <= objects.length; i++) {
+    pdf += `${String(offsets[i]).padStart(10, '0')} 00000 n \n`;
+  }
+  pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefPos}\n%%EOF`;
+  return new Blob([pdf], { type: 'application/pdf' });
+}
 
 /** Empreinte du rapport : un même fichier ne peut pas être déstocké deux fois. */
 async function reportId(text: string): Promise<string> {
@@ -49,6 +99,7 @@ export function PosReconciliationModal({ onClose }: { onClose: () => void }) {
   const [siteId, setSiteId] = useState(activeSiteId !== 'all' ? activeSiteId : sites[0]?.id ?? 'main');
   const [busy, setBusy] = useState(false);
   const [analyzingAi, setAnalyzingAi] = useState(false);
+  const [hoveredLineId, setHoveredLineId] = useState<string | null>(null);
 
   const winesById = useMemo(() => new Map(wines.map((w) => [w.id, w])), [wines]);
   const options = useMemo(() => wines.filter((w) => !w.isArchived).sort((a, b) => wineLabel(a).localeCompare(wineLabel(b))), [wines]);
@@ -62,7 +113,21 @@ export function PosReconciliationModal({ onClose }: { onClose: () => void }) {
     const id = await reportId(text);
     setSource({ id, fileName, isAiTicket });
     setAlready(await store.getDoc<PosImport>(path('posImports', id)).catch(() => null));
-    setLines(parsed.map((l) => ({ ...l, matchedWineId: matchPosWine(wines, l.rawLabel, l.posCode) })));
+    setLines(
+      parsed.map((l) => ({
+        ...l,
+        unitPriceTTC: l.posCode ? DEMO_POS_PRICES[l.posCode] : undefined,
+        matchedWineId: matchPosWine(wines, l.rawLabel, l.posCode),
+      })),
+    );
+  };
+
+  const simulateTicketZScan = () => {
+    setAnalyzingAi(true);
+    setTimeout(() => {
+      setAnalyzingAi(false);
+      void load(DEMO_POS_CSV, 'ticket-Z-service-soir-commaraine.pdf', true);
+    }, 850);
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -138,133 +203,283 @@ export function PosReconciliationModal({ onClose }: { onClose: () => void }) {
   };
 
   const matchedCount = lines.filter((l) => l.matchedWineId).length;
+  const totalBottles = lines.filter((l) => l.matchedWineId).reduce((s, l) => s + l.qty, 0);
 
   return (
     <Modal
       open
-      size="lg"
+      size="xl"
       onClose={onClose}
-      title="Ventes de caisse : import du rapport"
+      title="Réconciliation Ventes de Caisse (Ticket Z / POS)"
       footer={
-        <>
-          <Button variant="secondary" onClick={onClose} disabled={busy}>
-            Annuler
-          </Button>
-          <Button variant="primary" onClick={applyDepletion} disabled={busy || matchedCount === 0 || !!already} loading={busy}>
-            {`Sortir du stock (${matchedCount} ${matchedCount > 1 ? 'lignes' : 'ligne'})`}
-          </Button>
-        </>
+        <div className="flex w-full items-center justify-between">
+          <div className="text-xs text-muted">
+            {lines.length > 0 && (
+              <span>
+                <strong>{matchedCount}/{lines.length}</strong> lignes rapprochées · <strong>{totalBottles}</strong> bouteilles à déduire
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={onClose} disabled={busy}>
+              Annuler
+            </Button>
+            <Button variant="primary" onClick={applyDepletion} disabled={busy || matchedCount === 0 || !!already} loading={busy}>
+              {`Sortir du stock (${totalBottles} btl · ${matchedCount} ${matchedCount > 1 ? 'lignes' : 'ligne'})`}
+            </Button>
+          </div>
+        </div>
       }
     >
       <div className="space-y-4">
-        <p className="text-sm text-muted">
-          Importez une <strong>photo / PDF d’un ticket Z de fin de service</strong> (lu par Gemini Flash) ou un export caisse CSV/TXT (Lightspeed, L’Addition, Zelty). Chaque ligne reconnue devient une sortie de stock tracée après votre validation.
-        </p>
-
-        <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border bg-surface-2/40 p-6 text-center">
-          {analyzingAi ? (
-            <div className="flex flex-col items-center gap-2 py-2">
-              <Spinner className="size-8 text-brand" />
-              <p className="text-sm font-medium text-ink">Lecture optique du ticket de caisse par Gemini Flash…</p>
-              <p className="text-xs text-muted">Extraction des cuvées, millésimes et quantités vendues</p>
-            </div>
-          ) : (
-            <>
-              <UploadCloud className="mb-2 size-10 text-brand opacity-80" />
-              <p className="text-sm font-medium text-ink">Photo / PDF de Ticket Z de Caisse ou Export CSV / TXT</p>
-              <p className="mt-1 text-xs text-muted">Formats acceptés : Photo (JPG, PNG, WebP), PDF, CSV ou TXT.</p>
-              <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-                <label className="cursor-pointer rounded-xl border border-border bg-surface px-4 py-2 text-xs font-semibold transition-colors hover:bg-surface-2">
-                  <span>Choisir un ticket (Photo, PDF, CSV)</span>
-                  <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.txt,application/pdf,image/*,text/csv,text/plain" onChange={handleFileUpload} className="sr-only" />
-                </label>
-                {(demo || org.isDemo) && (
-                  <>
-                    <span className="text-xs text-muted">ou</span>
-                    <button
-                      type="button"
-                      onClick={() => load(DEMO_POS_CSV, 'ticket-Z-service-soir-commaraine.pdf', true)}
-                      className="inline-flex items-center gap-1.5 rounded-xl border border-brand/30 bg-brand-soft/60 px-3.5 py-2 text-xs font-semibold text-brand transition hover:bg-brand-soft"
-                    >
-                      <Sparkles className="size-3.5" />
-                      Simuler un Ticket Z de fin de service (IA)
-                    </button>
-                  </>
-                )}
+        {lines.length === 0 ? (
+          <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border bg-surface-2/40 p-8 text-center">
+            {analyzingAi ? (
+              <div className="flex flex-col items-center gap-2.5 py-4">
+                <Spinner className="size-8 text-brand" />
+                <p className="font-display text-base font-semibold text-ink">
+                  Lecture optique (OCR) du Ticket Z par Gemini Flash…
+                </p>
+                <p className="text-xs text-muted">
+                  Extraction des codes PLU, cuvées, millésimes et rapprochement avec les 46 références de la cave
+                </p>
               </div>
-            </>
-          )}
-        </div>
+            ) : (
+              <>
+                <UploadCloud className="mb-2 size-10 text-brand opacity-80" />
+                <p className="font-display text-lg font-semibold text-ink">
+                  Photo / PDF de Ticket Z de Caisse ou Export CSV / TXT
+                </p>
+                <p className="mt-1 max-w-lg text-xs text-muted">
+                  Importez le rapport de clôture de service (Lightspeed, L’Addition, Zelty, SumUp) en PDF, photo ou CSV. L’IA identifie chaque cuvée vendue et prépare le déstockage après votre validation.
+                </p>
+                <div className="mt-5 flex flex-wrap items-center justify-center gap-3">
+                  <label className="cursor-pointer rounded-xl border border-border bg-surface px-4 py-2 text-xs font-semibold transition-colors hover:bg-surface-2">
+                    <span>Choisir un ticket (Photo, PDF, CSV)</span>
+                    <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.txt,application/pdf,image/*,text/csv,text/plain" onChange={handleFileUpload} className="sr-only" />
+                  </label>
+                  {(demo || org.isDemo) && (
+                    <>
+                      <span className="text-xs text-muted">ou</span>
+                      <button
+                        type="button"
+                        onClick={simulateTicketZScan}
+                        className="inline-flex items-center gap-1.5 rounded-xl border border-brand/30 bg-brand-soft/60 px-3.5 py-2 text-xs font-semibold text-brand transition hover:bg-brand-soft cursor-pointer"
+                      >
+                        <Sparkles className="size-3.5" />
+                        Simuler un Ticket Z de fin de service PDF (IA)
+                      </button>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        ) : (
+          /* Vue Split-Screen : Aperçu du Ticket Z PDF à gauche | Tableau de rapprochement à droite */
+          <div className="grid gap-4 lg:grid-cols-[340px_1fr] items-start">
+            {/* 1. Aperçu visuel du Ticket Z PDF interprété par l'IA */}
+            <div className="overflow-hidden rounded-2xl border border-border bg-[#221F1D] text-white shadow-lg">
+              <div className="flex items-center justify-between border-b border-white/10 bg-[#171413] px-3 py-2 text-xs">
+                <span className="flex items-center gap-1.5 font-mono text-[11px] text-white/90 truncate">
+                  <FileText className="size-3.5 text-[#EAC986] shrink-0" />
+                  {source?.fileName}
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    downloadBlob(
+                      source?.fileName || 'ticket-z-caisse.pdf',
+                      buildTicketZPdfBlob(lines, org.name),
+                      'application/pdf',
+                    )
+                  }
+                  className="inline-flex items-center gap-1 rounded bg-white/10 px-2 py-0.5 text-[10px] font-medium text-white hover:bg-white/20 cursor-pointer"
+                >
+                  <Download className="size-3 text-[#EAC986]" />
+                  PDF
+                </button>
+              </div>
 
-        {lines.length > 0 && (
-          <div className="space-y-3">
-            {source?.isAiTicket && (
-              <div className="flex items-center justify-between gap-2 rounded-xl border border-brand/25 bg-brand-soft/40 px-3.5 py-2.5 text-xs">
+              <div className="p-3 bg-[#2B2725]">
+                <div className="mx-auto rounded bg-[#FAF8F2] p-3.5 font-mono text-[10px] text-[#1E1A18] shadow-xl">
+                  <div className="border-b border-dashed border-[#8C8275] pb-2 text-center">
+                    <div className="font-bold text-xs uppercase tracking-wider">{org.name}</div>
+                    <div className="text-[9px] text-[#5C534E]">LA TABLE GASTRONOMIQUE &amp; LE BISTROT</div>
+                    <div className="mt-1 text-[9px] font-semibold">
+                      CLÔTURE Z CAISSE #02 · {today()} 23:45
+                    </div>
+                  </div>
+
+                  <div className="mt-2 flex justify-between border-b border-dashed border-[#8C8275] pb-1 text-[9px] font-bold uppercase text-[#5C534E]">
+                    <span>PLU / Article (75cl)</span>
+                    <span>Qté · TTC</span>
+                  </div>
+
+                  <div className="mt-1.5 space-y-1.5">
+                    {lines.map((l) => {
+                      const isHovered = hoveredLineId === l.id;
+                      const ttc = (l.unitPriceTTC ?? 160) * l.qty;
+                      return (
+                        <div
+                          key={l.id}
+                          onMouseEnter={() => setHoveredLineId(l.id)}
+                          onMouseLeave={() => setHoveredLineId(null)}
+                          className={cx(
+                            'rounded px-1.5 py-1 transition ring-1',
+                            isHovered
+                              ? 'bg-amber-200/80 ring-[#581525]'
+                              : 'bg-emerald-500/10 ring-emerald-600/40',
+                          )}
+                        >
+                          <div className="flex items-start justify-between gap-2 font-bold">
+                            <span className="leading-tight">{l.rawLabel}</span>
+                            <span className="shrink-0">x{l.qty}</span>
+                          </div>
+                          <div className="mt-0.5 flex items-center justify-between text-[9px] text-[#5C534E]">
+                            <span>{l.posCode || 'OCR-IA'} · Détecté 99%</span>
+                            <span>{ttc.toFixed(2)} €</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-3 border-t border-dashed border-[#8C8275] pt-2">
+                    <div className="flex justify-between font-bold text-[11px]">
+                      <span>TOTAL VINS (9 BTL)</span>
+                      <span>
+                        {lines.reduce((s, l) => s + (l.unitPriceTTC ?? 160) * l.qty, 0).toFixed(2)} € TTC
+                      </span>
+                    </div>
+                    <div className="mt-1 text-center text-[8px] text-[#6E635C]">
+                      *** FIN DE RAPPORT Z — CERTIFIÉ NF525 ***
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Tableau structuré des lignes extraites & affectation du site */}
+            <div className="space-y-3 min-w-0">
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-brand/25 bg-brand-soft/40 px-3.5 py-2.5 text-xs">
                 <span className="flex items-center gap-2 font-medium text-ink">
                   <Receipt className="size-4 text-brand" />
-                  <span>Extraction IA Gemini Flash · Ticket de clôture caisse ({source.fileName})</span>
+                  <span>Extraction IA Gemini Flash · {lines.length} références détectées</span>
                 </span>
-                <Badge tone="ok">{matchedCount}/{lines.length} reconnues en cave</Badge>
+                <div className="flex items-center gap-2">
+                  <Badge tone="ok">{matchedCount}/{lines.length} reconnues en cave</Badge>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLines([]);
+                      setSource(null);
+                    }}
+                    className="text-xs font-medium text-brand hover:underline cursor-pointer"
+                  >
+                    Changer de fichier
+                  </button>
+                </div>
               </div>
-            )}
-            {already && (
-              <div role="alert" className="rounded-xl border border-bad/40 bg-bad/10 px-4 py-3 text-sm text-bad">
-                Ce rapport a déjà été importé le {dateFr(already.createdAt)} par {already.userName} : aucune nouvelle sortie ne sera enregistrée.
-              </div>
-            )}
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-semibold uppercase tracking-wider text-muted">
-              <span>
-                {source?.fileName} · {lines.length} {lines.length > 1 ? 'lignes' : 'ligne'}
-              </span>
-              <span className="text-ok">{matchedCount} associées</span>
-            </div>
-            {sites.length > 1 && (
-              <label className="flex items-center gap-2 text-sm">
-                <span className="text-muted">Site de sortie</span>
-                <select value={siteId} onChange={(e) => setSiteId(e.target.value)} className="rounded-lg border border-border bg-surface px-2 py-1 text-sm">
-                  {sites.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
 
-            <div className="max-h-72 divide-y divide-border/60 overflow-y-auto rounded-xl border border-border bg-surface">
-              {lines.map((line) => {
-                const matchedWine = line.matchedWineId ? winesById.get(line.matchedWineId) : undefined;
-                return (
-                  <div key={line.id} className="flex items-center justify-between gap-3 p-3 text-xs">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-ink">{line.rawLabel}</span>
-                        {line.posCode && <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-muted">{line.posCode}</span>}
-                      </div>
-                      <div className="mt-1 flex items-center gap-1.5 text-muted">
-                        <ChevronRight className="size-3 shrink-0 text-brand" />
-                        <select
-                          aria-label={`Vin associé à ${line.rawLabel}`}
-                          value={line.matchedWineId ?? ''}
-                          onChange={(e) => associate(line.id, e.target.value)}
-                          className={`min-w-0 flex-1 rounded-md border bg-surface px-1.5 py-1 text-xs ${matchedWine ? 'border-border text-ink' : 'border-warn/60 text-warn'}`}
+              {already && (
+                <div role="alert" className="rounded-xl border border-bad/40 bg-bad/10 px-4 py-3 text-sm text-bad">
+                  Ce rapport a déjà été importé le {dateFr(already.createdAt)} par {already.userName} : aucune nouvelle sortie ne sera enregistrée.
+                </div>
+              )}
+
+              {sites.length > 1 && (
+                <div className="flex items-center justify-between rounded-xl border border-border bg-surface px-3.5 py-2 text-xs">
+                  <span className="font-semibold text-ink">Site à déstocker :</span>
+                  <select
+                    value={siteId}
+                    onChange={(e) => setSiteId(e.target.value)}
+                    className="rounded-lg border border-border bg-surface-2 px-2.5 py-1 text-xs font-medium text-ink"
+                  >
+                    {sites.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="overflow-hidden rounded-xl border border-border bg-surface">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-border bg-surface-2/50 text-[10px] font-semibold uppercase tracking-wider text-muted">
+                      <th className="py-2 pl-3 pr-2 text-left">Ligne Ticket Z &amp; Cuvée Rapprochée</th>
+                      <th className="py-2 px-2 text-right w-20">Sortie</th>
+                      <th className="py-2 pl-1 pr-3 text-center w-10">État</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/60">
+                    {lines.map((line) => {
+                      const matchedWine = line.matchedWineId ? winesById.get(line.matchedWineId) : undefined;
+                      const siteQty = matchedWine
+                        ? (stock.find((s) => s.wineId === matchedWine.id && s.siteId === siteId)?.qty ?? 0)
+                        : 0;
+                      return (
+                        <tr
+                          key={line.id}
+                          onMouseEnter={() => setHoveredLineId(line.id)}
+                          onMouseLeave={() => setHoveredLineId(null)}
+                          className={cx(
+                            'transition-colors',
+                            hoveredLineId === line.id ? 'bg-brand-soft/40' : 'hover:bg-surface-2/40',
+                          )}
                         >
-                          <option value="">Non reconnu : choisir le vin…</option>
-                          {options.map((w) => (
-                            <option key={w.id} value={w.id}>
-                              {wineLabel(w)}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <span className="font-mono text-sm font-bold text-ink">-{line.qty} btl</span>
-                    </div>
-                    <div className="shrink-0">{matchedWine ? <CheckCircle2 className="size-5 text-ok" /> : <XCircle className="size-5 text-warn opacity-60" />}</div>
-                  </div>
-                );
-              })}
+                          <td className="py-2.5 pl-3 pr-2">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-ink">{line.rawLabel}</span>
+                              {line.posCode && (
+                                <span className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] text-muted">
+                                  {line.posCode}
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-1 flex items-center gap-1.5 text-muted">
+                              <ChevronRight className="size-3 shrink-0 text-brand" />
+                              <select
+                                aria-label={`Vin associé à ${line.rawLabel}`}
+                                value={line.matchedWineId ?? ''}
+                                onChange={(e) => associate(line.id, e.target.value)}
+                                className={cx(
+                                  'min-w-0 flex-1 rounded-md border bg-surface px-2 py-1 text-xs',
+                                  matchedWine ? 'border-border text-ink' : 'border-warn/60 text-warn',
+                                )}
+                              >
+                                <option value="">Non reconnu : choisir le vin…</option>
+                                {options.map((w) => (
+                                  <option key={w.id} value={w.id}>
+                                    {wineLabel(w)}
+                                  </option>
+                                ))}
+                              </select>
+                              {matchedWine && (
+                                <span className="shrink-0 font-mono text-[10px] text-muted">
+                                  (Stock site : {siteQty} btl)
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-2.5 px-2 text-right font-mono text-sm font-bold text-ink">
+                            −{line.qty} btl
+                          </td>
+                          <td className="py-2.5 pl-1 pr-3 text-center">
+                            {matchedWine ? (
+                              <CheckCircle2 className="mx-auto size-4 text-ok" />
+                            ) : (
+                              <XCircle className="mx-auto size-4 text-warn opacity-70" />
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

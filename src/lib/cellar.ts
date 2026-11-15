@@ -28,49 +28,104 @@ export interface CellarRackPreset {
 export const RACK_PRESETS: CellarRackPreset[] = [
   {
     id: 'eurocave',
-    name: 'Armoire de Vieillissement',
-    desc: 'Clayettes coulissantes avec empilement en quinconce et double profondeur avant / arrière (style EuroCave, Liebherr).',
+    name: 'Caveau & Voûte Grands Crus (Quinconce)',
+    desc: 'Clayettes en chêne avec empilement en quinconce et double profondeur Devant / Derrière (idéal Bourgogne & Grands Crus).',
     geometry: 'staggered_shelf',
     rows: 5,
     cols: 6,
     doubleDepth: true,
     staggered: true,
-    defaultPrefix: 'ARM',
+    defaultPrefix: 'CAV',
   },
   {
     id: 'matrix_wood',
-    name: 'Casier Alvéolaire Classique',
-    desc: 'Casier en bois ou métal avec alvéoles régulières (colonnes × niveaux alignés).',
+    name: 'Travée Gastronomique — Grande Capacité',
+    desc: 'Travée bois/pierre haute densité avec double profondeur Devant / Derrière pour la rotation des cuvées de carte.',
     geometry: 'matrix',
     rows: 4,
-    cols: 6,
-    doubleDepth: false,
+    cols: 8,
+    doubleDepth: true,
     staggered: false,
-    defaultPrefix: 'A',
+    defaultPrefix: 'TRV',
   },
   {
     id: 'linear_shelf',
-    name: 'Étagère Murale / Rayonnage',
-    desc: 'Rayonnage droit linéaire simple, idéal pour la réserve ou la boutique.',
-    geometry: 'matrix',
-    rows: 3,
-    cols: 8,
+    name: 'Armoire Sommelier de Salle (Service)',
+    desc: 'Armoire vitrée multi-températures avec clayettes en quinconce (1 rangée de face) pour le service immédiat et le vin au verre.',
+    geometry: 'staggered_shelf',
+    rows: 5,
+    cols: 6,
     doubleDepth: false,
-    staggered: false,
-    defaultPrefix: 'ETG',
+    staggered: true,
+    defaultPrefix: 'ARM',
   },
   {
     id: 'bulk_zone',
-    name: 'Zone Caisses & Palettes (Vrac)',
-    desc: 'Emplacement de stockage au sol pour cartons entiers et caisses bois.',
+    name: 'Loge Caisses Bois d’Origine (CBO & Magnums)',
+    desc: 'Loges grand volume pour caisses bois scellées (6 à 12 btl), allocations domaines et grands formats.',
     geometry: 'bulk',
     rows: 2,
     cols: 4,
     doubleDepth: false,
     staggered: false,
-    defaultPrefix: 'VRAC',
+    defaultPrefix: 'CBO',
   },
 ];
+
+/** Retourne un libellé court et lisible (8 à 11 caractères) pour étiqueter le goulot d'une bouteille sur le plan. */
+export function getShortWineNeckLabel(wine: Wine): string {
+  const rawSource = `${wine.producer} ${wine.name}`;
+  if (/commaraine/i.test(rawSource)) return 'Commaraine';
+  if (/la\s*t[aâ]che/i.test(rawSource)) return 'La Tâche';
+  if (/roman[eé]e/i.test(rawSource)) return 'Romanée';
+  if (/leflaive/i.test(rawSource)) return 'Leflaive';
+  if (/roulot/i.test(rawSource)) return 'Roulot';
+  if (/coche[\s-]*dury/i.test(rawSource)) return 'Coche-Dury';
+  if (/raveneau/i.test(rawSource)) return 'Raveneau';
+  if (/rousseau/i.test(rawSource)) return 'Rousseau';
+  if (/dujac/i.test(rawSource)) return 'Dujac';
+  if (/roumier/i.test(rawSource)) return 'Roumier';
+  if (/mugnier/i.test(rawSource)) return 'Mugnier';
+  if (/krug/i.test(rawSource)) return 'Krug';
+  if (/cristal|roederer/i.test(rawSource)) return 'Cristal';
+  if (/salon/i.test(rawSource)) return 'Salon';
+  if (/selosse/i.test(rawSource)) return 'Selosse';
+  if (/ruinart/i.test(rawSource)) return 'Ruinart';
+  if (/billecart/i.test(rawSource)) return 'Billecart';
+  if (/bollinger/i.test(rawSource)) return 'Bollinger';
+  if (/yquem/i.test(rawSource)) return 'Yquem';
+  if (/margaux/i.test(rawSource)) return 'Margaux';
+  if (/latour/i.test(rawSource)) return 'Latour';
+  if (/mouton/i.test(rawSource)) return 'Mouton';
+  if (/haut[\s-]*brion/i.test(rawSource)) return 'Haut-Brion';
+  if (/cheval\s*blanc/i.test(rawSource)) return 'Cheval Bl.';
+  if (/p[eé]trus/i.test(rawSource)) return 'Pétrus';
+  if (/rayas/i.test(rawSource)) return 'Rayas';
+  if (/chave/i.test(rawSource)) return 'Chave';
+  if (/guigal/i.test(rawSource)) return 'Guigal';
+  if (/trimbach/i.test(rawSource)) return 'Trimbach';
+  if (/vatan/i.test(rawSource)) return 'Clos Néore';
+  if (/dagueneau/i.test(rawSource)) return 'Dagueneau';
+  if (/tempier/i.test(rawSource)) return 'Tempier';
+  if (/huet/i.test(rawSource)) return 'Huet';
+  if (/lapierre/i.test(rawSource)) return 'Lapierre';
+  if (/f[eè]vre/i.test(rawSource)) return 'W. Fèvre';
+
+  const cleanedProducer = wine.producer
+    .replace(/^(Domaine|Château|Chateau|Maison|Champagne|Clos| Vignobles|Famille)\s+(de\s+la\s+|du\s+|des\s+|de\s+|d['’])?/i, '')
+    .trim();
+  const base = cleanedProducer || wine.name;
+  return base.length > 10 ? `${base.slice(0, 9)}.` : base;
+}
+
+/** Indique si un vin est actuellement dans sa fenêtre d'apogée optimale. */
+export function isWineAtApogee(wine: Wine, currentYear = new Date().getFullYear()): boolean {
+  const from = wine.drinkFrom ?? (Number.isFinite(Number(wine.vintage)) ? Number(wine.vintage) + 3 : undefined);
+  const until = wine.drinkUntil ?? (Number.isFinite(Number(wine.vintage)) ? Number(wine.vintage) + 12 : undefined);
+  if (from && until) return currentYear >= from && currentYear <= until;
+  if (from) return currentYear >= from;
+  return false;
+}
 
 /** Calcule la capacité totale théorique en bouteilles d'un meuble. */
 export function getRackCapacity(rack: CellarRack): number {

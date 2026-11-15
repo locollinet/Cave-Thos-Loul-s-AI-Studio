@@ -81,7 +81,7 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
       racks: [
         {
           id: 'rack-eurocave',
-          name: 'Armoire EuroCave (Vieillissement)',
+          name: 'Caveau Bourgogne — Grands Crus (Quinconce)',
           prefix: 'ARM',
           geometry: 'staggered_shelf',
           rows: 5,
@@ -91,17 +91,17 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
         },
         {
           id: 'rack-matrix-a',
-          name: 'Casier Principal (Allée A)',
+          name: 'Travée Gastronomique (Allée A)',
           prefix: 'A',
           geometry: 'matrix',
           rows: 4,
           cols: 6,
-          doubleDepth: false,
+          doubleDepth: true,
           staggered: false,
         },
         {
           id: 'rack-bulk-reserve',
-          name: 'Réserve Caisses & Vrac',
+          name: 'Loge Caisses Bois d’Origine (CBO)',
           prefix: 'VRAC',
           geometry: 'bulk',
           rows: 2,
@@ -114,7 +114,37 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
   };
   const sites: Site[] = [mainSite];
   const addSite = (name: string, kind: Site['kind']) => {
-    const s: Site = { id: uid(), name, kind, createdAt: created };
+    const id = uid();
+    const s: Site = {
+      id,
+      name,
+      kind,
+      createdAt: created,
+      layout: {
+        racks: [
+          {
+            id: `rack-salle-${id}`,
+            name: kind === 'bar' ? 'Armoire Sommelier & Vins au Verre' : 'Cave de Jour — Service de Salle',
+            prefix: 'SAL',
+            geometry: 'staggered_shelf',
+            rows: 4,
+            cols: 6,
+            doubleDepth: true,
+            staggered: true,
+          },
+          {
+            id: `rack-travee-${id}`,
+            name: 'Travée Réserve de Service',
+            prefix: 'SRV',
+            geometry: 'matrix',
+            rows: 3,
+            cols: 6,
+            doubleDepth: false,
+            staggered: false,
+          },
+        ],
+      },
+    };
     sites.push(s);
     siteOps.push({ op: 'set', path: `${base}/sites/${s.id}`, data: s as never });
     return s;
@@ -253,29 +283,60 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
     let bin: string | undefined;
     let bins: string[] | undefined;
 
-    if (i < 8 && qty > 0) {
-      // Dans l'armoire EuroCave : 1 bouteille par alvéole
-      const assigned = eurocaveSlots.slice(eurocaveSlotIdx, eurocaveSlotIdx + qty).map((s) => s.code);
+    if (i < 14 && qty > 0) {
+      // Dans le Caveau Bourgogne — Grands Crus (Quinconce) : jusqu'à 6 btl par cuvée pour peupler les 5 étages Devant + Derrière
+      const count = Math.min(qty, 6);
+      const assigned = eurocaveSlots.slice(eurocaveSlotIdx, eurocaveSlotIdx + count).map((s) => s.code);
       eurocaveSlotIdx += assigned.length;
       bins = assigned;
       bin = formatBinSummary(assigned);
-    } else if (i < 16 && qty > 0) {
-      // Dans le casier classique Allée A : 1 bouteille par alvéole
+    } else if (i < 24 && qty > 0) {
+      // Dans la Travée Gastronomique Allée A : 1 bouteille par alvéole
       const count = Math.min(qty, 4);
       const assigned = matrixSlots.slice(matrixSlotIdx, matrixSlotIdx + count).map((s) => s.code);
       matrixSlotIdx += assigned.length;
       bins = assigned;
       bin = formatBinSummary(assigned);
-    } else if (i < 19 && qty > 0) {
-      // Zone vrac / caisses
-      bin = `VRAC-R1-C${i - 15}`;
+    } else if (i < 28 && qty > 0) {
+      // Zone caisses bois d'origine (CBO)
+      bin = `VRAC-R${i < 26 ? 1 : 2}-C${((i - 24) % 4) + 1}`;
     } else {
-      // Sans emplacement pour tester l'assignation rapide
+      // Sans emplacement pour tester le rangement automatique ou unitaire
       bin = undefined;
     }
     stock.push({ id: stockId(w.id, mainSiteId), wineId: w.id, siteId: mainSiteId, qty, bin, bins, updatedAt: now });
   });
-  for (const b of built.balances.values()) if (b.siteId !== mainSiteId) stock.push({ id: stockId(b.wineId, b.siteId), wineId: b.wineId, siteId: b.siteId, qty: b.qty, updatedAt: now });
+
+  // Rangement initial sur les sites secondaires (Salle & bar, Table Gastronomique, Hôtel du Lac, Bar du Palais)
+  const secCursorBySite = new Map<string, number>();
+  for (const b of built.balances.values()) {
+    if (b.siteId === mainSiteId) continue;
+    const secSite = sites.find((s) => s.id === b.siteId);
+    const primaryRack = secSite?.layout?.racks?.[0];
+    let bin: string | undefined;
+    let bins: string[] | undefined;
+
+    if (primaryRack && b.qty > 0) {
+      const slots = generateRackSlots(primaryRack);
+      const cur = secCursorBySite.get(b.siteId) ?? 0;
+      if (cur < Math.floor(slots.length * 0.75)) {
+        const count = Math.min(b.qty, 4);
+        const assigned = slots.slice(cur, cur + count).map((s) => s.code);
+        secCursorBySite.set(b.siteId, cur + assigned.length);
+        bins = assigned;
+        bin = formatBinSummary(assigned);
+      }
+    }
+    stock.push({
+      id: stockId(b.wineId, b.siteId),
+      wineId: b.wineId,
+      siteId: b.siteId,
+      qty: b.qty,
+      bin,
+      bins,
+      updatedAt: now,
+    });
+  }
 
   /* ---------------------------------------------------------- assemblage */
   let wineList: WineList | undefined;

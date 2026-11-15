@@ -1,16 +1,17 @@
 import { useRef, useState, type DragEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, FileUp, PenLine, Sparkles } from 'lucide-react';
+import { ArrowLeft, Download, FileUp, PenLine, Sparkles } from 'lucide-react';
 import { useCollection, useOrg } from '@/app/org';
 import { useAuth } from '@/app/auth';
 import { useT } from '@/i18n';
 import { Button, Card, EmptyState, PageHeader, Spinner } from '@/ui';
 import type { PurchaseInvoice } from '@/types';
 import { apiPost, fileToBase64 } from '@/lib/api';
-import { parseCsv, today } from '@/lib/utils';
+import { downloadBlob, parseCsv, today } from '@/lib/utils';
 import { emptyDraft, invoiceToDraft, parseTabular, toDraft } from './logic';
 import type { InvoiceDraft, ParsedInvoice } from './types';
 import { Review } from './Review';
+import { buildRealInvoicePdfBlob, InvoicePdfPreview } from './InvoicePdfPreview';
 
 const DEMO_PARSED_INVOICE: ParsedInvoice = {
   supplierName: 'Grands Terroirs de Bourgogne',
@@ -18,9 +19,9 @@ const DEMO_PARSED_INVOICE: ParsedInvoice = {
   date: today(),
   dueDate: today(),
   shippingHT: 45,
-  totalHT: 3465,
-  totalVAT: 693,
-  totalTTC: 4158,
+  totalHT: 4593,
+  totalVAT: 918.6,
+  totalTTC: 5511.6,
   lines: [
     {
       description: 'Domaine Leflaive — Puligny-Montrachet 2020 (75cl)',
@@ -58,6 +59,30 @@ const DEMO_PARSED_INVOICE: ParsedInvoice = {
       unitPriceHT: 142,
       vatRate: 20,
     },
+    {
+      description: 'Domaine Dujac — Gevrey-Chambertin 2020 (75cl)',
+      producer: 'Domaine Dujac',
+      cuvee: 'Gevrey-Chambertin',
+      vintage: '2020',
+      formatCl: 75,
+      color: 'rouge',
+      region: 'Bourgogne',
+      qty: 12,
+      unitPriceHT: 68,
+      vatRate: 20,
+    },
+    {
+      description: 'Champagne Ruinart — Blanc de Blancs NM (75cl)',
+      producer: 'Champagne Ruinart',
+      cuvee: 'Blanc de Blancs',
+      vintage: 'NM',
+      formatCl: 75,
+      color: 'bulles',
+      region: 'Champagne',
+      qty: 6,
+      unitPriceHT: 52,
+      vatRate: 20,
+    },
   ],
 };
 
@@ -82,7 +107,10 @@ export default function NewInvoice() {
   const { rows: invoices, loading } = useCollection<PurchaseInvoice>('purchaseInvoices');
   const siteId = activeSiteId !== 'all' && sites.some((s) => s.id === activeSiteId) ? activeSiteId : (sites[0]?.id ?? '');
   const [draft, setDraft] = useState<InvoiceDraft | null>(null);
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | undefined>();
+  const [fileMimeType, setFileMimeType] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
+  const [scanningDemoDraft, setScanningDemoDraft] = useState<InvoiceDraft | null>(null);
   const [error, setError] = useState('');
   const [over, setOver] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -100,6 +128,14 @@ export default function NewInvoice() {
     if (file.size > MAX_BYTES) return setError(t('achats.import.tooBig'));
     setBusy(true);
     try {
+      if (AI_MIMES.includes(file.type)) {
+        setFilePreviewUrl(URL.createObjectURL(file));
+        setFileMimeType(file.type);
+      } else {
+        setFilePreviewUrl(undefined);
+        setFileMimeType(undefined);
+      }
+
       let parsed: ParsedInvoice | null;
       const isXml = /\.xml$/i.test(file.name) || /\/xml$/.test(file.type);
       // Factur-X : le XML embarqué donne la facture exacte, sans passer par l'IA.
@@ -123,6 +159,21 @@ export default function NewInvoice() {
     }
   };
 
+  const simulateAiPdfScan = () => {
+    const built = toDraft(DEMO_PARSED_INVOICE, wines, opts('facture-allocation-bourgogne-2026.pdf'));
+    setScanningDemoDraft(built);
+    setTimeout(() => {
+      setScanningDemoDraft(null);
+      setDraft(built);
+    }, 1050);
+  };
+
+  const downloadSamplePdf = () => {
+    const built = toDraft(DEMO_PARSED_INVOICE, wines, opts('facture-allocation-bourgogne-2026.pdf'));
+    const blob = buildRealInvoicePdfBlob(built, org.name, org.defaultVatRate);
+    downloadBlob('facture-allocation-bourgogne-2026.pdf', blob, 'application/pdf');
+  };
+
   const onDrop = (e: DragEvent) => {
     e.preventDefault();
     setOver(false);
@@ -130,12 +181,46 @@ export default function NewInvoice() {
     if (f) void handle(f);
   };
 
+  if (scanningDemoDraft) {
+    return (
+      <div>
+        <PageHeader
+          title="Analyse IA Gemini Flash en cours…"
+          subtitle="Lecture optique (OCR) du PDF fournisseur, extraction des cuvées et calcul du Coût Moyen Pondéré (CMP)"
+        />
+        <div className="mx-auto max-w-2xl">
+          <InvoicePdfPreview
+            draft={scanningDemoDraft}
+            orgName={org.name}
+            defaultVat={org.defaultVatRate}
+            scanning
+          />
+        </div>
+      </div>
+    );
+  }
+
   const active = existing ? invoiceToDraft(existing, wines, siteId, org.defaultVatRate) : draft;
   if (active) {
     return (
       <div>
-        <PageHeader title={t(existing ? 'achats.editDraft' : 'achats.review')} subtitle={t('achats.reviewHint')} actions={<Link to="/achats" className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink"><ArrowLeft className="size-4" />{t('common.back')}</Link>} />
-        <Review key={active.id} initial={active} createdAt={existing?.createdAt} />
+        <PageHeader
+          title={t(existing ? 'achats.editDraft' : 'achats.review')}
+          subtitle={t('achats.reviewHint')}
+          actions={
+            <Link to="/achats" className="inline-flex items-center gap-1 text-sm text-muted hover:text-ink">
+              <ArrowLeft className="size-4" />
+              {t('common.back')}
+            </Link>
+          }
+        />
+        <Review
+          key={active.id}
+          initial={active}
+          createdAt={existing?.createdAt}
+          filePreviewUrl={filePreviewUrl}
+          fileMimeType={fileMimeType}
+        />
       </div>
     );
   }
@@ -172,13 +257,23 @@ export default function NewInvoice() {
                 {t('achats.import.manual')}
               </Button>
               {(demo || org.isDemo) && (
-                <Button
-                  variant="secondary"
-                  icon={<Sparkles className="size-4 text-brand" />}
-                  onClick={() => setDraft(toDraft(DEMO_PARSED_INVOICE, wines, opts('facture-allocation-bourgogne-2026.pdf')))}
-                >
-                  Simuler une facture Domaine (IA)
-                </Button>
+                <>
+                  <Button
+                    variant="secondary"
+                    icon={<Sparkles className="size-4 text-brand" />}
+                    onClick={simulateAiPdfScan}
+                  >
+                    Simuler une facture Domaine PDF (IA)
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    icon={<Download className="size-4 text-muted" />}
+                    onClick={downloadSamplePdf}
+                    title="Télécharger un vrai PDF de facture fournisseur pour le glisser-déposer"
+                  >
+                    Télécharger le PDF exemple
+                  </Button>
+                </>
               )}
             </div>
           </>

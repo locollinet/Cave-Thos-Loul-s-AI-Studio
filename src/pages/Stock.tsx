@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ArrowDownToLine, ArrowRightLeft, ArrowUpFromLine, Boxes, Download, Eye, Layers, ReceiptText, SlidersHorizontal } from 'lucide-react';
+import { ArrowDownToLine, ArrowRightLeft, ArrowUpFromLine, Boxes, Download, ReceiptText, SlidersHorizontal } from 'lucide-react';
 import type { Movement, MovementType, Site, StockLevel, Wine } from '@/types';
 import { useCollection, useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
@@ -14,7 +14,6 @@ import { COLOR_DOT } from './Wines';
 import { WineFilters } from '@/components/WineFilters';
 import { WineGroups } from '@/components/WineGroups';
 import { EMPTY_FILTERS, matchesWine, sortWines, type WineGroupBy, type WineSort } from '@/lib/wineFilters';
-import { CellarMap } from '@/components/cellar/CellarMap';
 import { PosReconciliationModal } from '@/components/pos/PosReconciliationModal';
 import { CellarPlan } from './stock/CellarPlan';
 import { QuickBinModal } from './stock/QuickBinPopover';
@@ -28,7 +27,6 @@ export default function StockPage() {
   const [params, setParams] = useSearchParams();
   const urlTab = params.get('tab');
   const [tab, setTab] = useState<'levels' | 'cellar' | 'journal'>(() => (urlTab === 'cellar' || urlTab === 'journal' ? urlTab : 'levels'));
-  const [cellarMode, setCellarMode] = useState<'plan' | '3d'>('plan');
   const [posModal, setPosModal] = useState(false);
   const [q, setQ] = useState('');
   const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
@@ -227,38 +225,7 @@ export default function StockPage() {
       />
 
       {tab === 'cellar' ? (
-        <div className="space-y-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/50 pb-3">
-            <p className="text-sm text-muted">
-              {cellarMode === 'plan'
-                ? 'Configuration des armoires, alvéoles et affectation rapide des bouteilles.'
-                : 'Cartographie de prestige avec casiers en chêne 2D et scène WebGL 3D réaliste.'}
-            </p>
-            <div className="flex gap-1.5 rounded-lg border border-border bg-surface-2/40 p-1">
-              <Button
-                size="sm"
-                variant={cellarMode === 'plan' ? 'secondary' : 'ghost'}
-                icon={<Layers className="size-4" />}
-                onClick={() => setCellarMode('plan')}
-              >
-                Gestion Casiers & Alvéoles
-              </Button>
-              <Button
-                size="sm"
-                variant={cellarMode === '3d' ? 'secondary' : 'ghost'}
-                icon={<Eye className="size-4 text-brand" />}
-                onClick={() => setCellarMode('3d')}
-              >
-                Vue 2D / 3D Réaliste
-              </Button>
-            </div>
-          </div>
-          {cellarMode === 'plan' ? (
-            <CellarPlan />
-          ) : (
-            <CellarMap onOpenWine={(id) => setOpenId(id)} onConfigure={() => setCellarMode('plan')} />
-          )}
-        </div>
+        <CellarPlan onOpenWine={(id) => setOpenId(id)} />
       ) : tab === 'levels' ? (
         <>
           <WineFilters
