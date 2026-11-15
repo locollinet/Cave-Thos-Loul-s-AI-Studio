@@ -1,15 +1,18 @@
 import { useMemo, useState } from 'react';
-import { CheckCircle2, ChevronRight, Sparkles, UploadCloud, XCircle } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Receipt, Sparkles, UploadCloud, XCircle } from 'lucide-react';
 import { useOrg } from '@/app/org';
 import { useAuth } from '@/app/auth';
-import { Button, Modal, useToast } from '@/ui';
+import { Badge, Button, Modal, Spinner, useToast } from '@/ui';
 import { wineLabel } from '@/lib/wine';
-import { dateFr } from '@/lib/utils';
+import { dateFr, uid } from '@/lib/utils';
 import { matchPosWine, parsePosReport, type PosReportLine } from '@/lib/posReport';
 import { buildMovementOps } from '@/data/stock';
+import { apiPost, fileToBase64 } from '@/lib/api';
+import type { ParsedInvoice } from '@/modules/achats/types';
 
 interface PosLine extends PosReportLine {
   matchedWineId?: string;
+  unitPriceTTC?: number;
 }
 
 interface PosImport {
@@ -21,11 +24,14 @@ interface PosImport {
 
 const DEMO_POS_CSV = [
   'Article;Quantité;Code PLU',
-  'Chablis 1er Cru Montée de Tonnerre 2020;2;PLU-104',
-  'Meursault Domaine des Comtes Lafon 2019;1;PLU-208',
-  'Champagne Grand Brut 75cl;3;PLU-301',
-  'Gevrey-Chambertin 2018;2;PLU-402',
+  'Château de La Commaraine Pommard 1er Cru Clos de la Commaraine 2019;2;PLU-101',
+  'Domaine Leflaive Puligny-Montrachet 2020;2;PLU-204',
+  'Domaine François Raveneau Chablis 1er Cru Montée de Tonnerre 2020;1;PLU-108',
+  'Domaine des Comtes Lafon Meursault 1er Cru Charmes 2020;1;PLU-215',
+  'Ruinart Blanc de Blancs;3;PLU-301',
 ].join('\n');
+
+const AI_MIMES = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
 
 /** Empreinte du rapport : un même fichier ne peut pas être déstocké deux fois. */
 async function reportId(text: string): Promise<string> {
@@ -38,32 +44,65 @@ export function PosReconciliationModal({ onClose }: { onClose: () => void }) {
   const { user, demo } = useAuth();
   const { wines, stock, activeSiteId, sites, commit, orgId, org, store, path } = useOrg();
   const [lines, setLines] = useState<PosLine[]>([]);
-  const [source, setSource] = useState<{ id: string; fileName: string } | null>(null);
+  const [source, setSource] = useState<{ id: string; fileName: string; isAiTicket?: boolean } | null>(null);
   const [already, setAlready] = useState<PosImport | null>(null);
   const [siteId, setSiteId] = useState(activeSiteId !== 'all' ? activeSiteId : sites[0]?.id ?? 'main');
   const [busy, setBusy] = useState(false);
+  const [analyzingAi, setAnalyzingAi] = useState(false);
 
   const winesById = useMemo(() => new Map(wines.map((w) => [w.id, w])), [wines]);
   const options = useMemo(() => wines.filter((w) => !w.isArchived).sort((a, b) => wineLabel(a).localeCompare(wineLabel(b))), [wines]);
 
-  const load = async (text: string, fileName: string) => {
+  const load = async (text: string, fileName: string, isAiTicket = false) => {
     const parsed = parsePosReport(text);
     if (!parsed.length) {
       toast('Aucune ligne exploitable : colonnes attendues Article ; Quantité ; Code PLU (facultatif).', 'bad');
       return;
     }
     const id = await reportId(text);
-    setSource({ id, fileName });
+    setSource({ id, fileName, isAiTicket });
     setAlready(await store.getDoc<PosImport>(path('posImports', id)).catch(() => null));
     setLines(parsed.map((l) => ({ ...l, matchedWineId: matchPosWine(wines, l.rawLabel, l.posCode) })));
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    if (file.size > 2_000_000) {
-      toast('Fichier trop volumineux (2 Mo maximum).', 'bad');
+    if (file.size > 10_000_000) {
+      toast('Fichier trop volumineux (10 Mo maximum).', 'bad');
+      return;
+    }
+    if (AI_MIMES.includes(file.type) || /\.(pdf|png|jpe?g|webp)$/i.test(file.name)) {
+      setAnalyzingAi(true);
+      try {
+        const { base64, mimeType } = await fileToBase64(file);
+        const parsed = await apiPost<ParsedInvoice>('/api/ai/parse-invoice', { base64, mimeType, fileName: file.name });
+        if (!parsed.lines?.length) {
+          toast('Aucune ligne de vin détectée par Gemini Flash sur ce ticket.', 'bad');
+          return;
+        }
+        const id = await reportId(`${file.name}:${file.size}:${parsed.lines.map((l) => `${l.description}-${l.qty}`).join('|')}`);
+        setSource({ id, fileName: file.name, isAiTicket: true });
+        setAlready(await store.getDoc<PosImport>(path('posImports', id)).catch(() => null));
+        setLines(
+          parsed.lines.map((l) => {
+            const rawLabel = [l.producer, l.cuvee || l.description, l.vintage && l.vintage !== 'NM' ? l.vintage : ''].filter(Boolean).join(' ').trim() || l.description;
+            return {
+              id: uid(),
+              rawLabel,
+              qty: Math.max(1, Math.round(l.qty || 1)),
+              unitPriceTTC: l.unitPriceHT || undefined,
+              matchedWineId: matchPosWine(wines, rawLabel),
+            };
+          }),
+        );
+        toast(`Ticket analysé par Gemini Flash : ${parsed.lines.length} lignes extraites`, 'ok');
+      } catch (err) {
+        toast((err as Error).message || 'Erreur lors de la lecture IA du ticket', 'bad');
+      } finally {
+        setAnalyzingAi(false);
+      }
       return;
     }
     file.text().then((text) => load(text, file.name));
@@ -119,33 +158,55 @@ export function PosReconciliationModal({ onClose }: { onClose: () => void }) {
     >
       <div className="space-y-4">
         <p className="text-sm text-muted">
-          Importez le rapport de ventes de fin de service exporté par votre caisse (CSV ou TXT). Chaque ligne reconnue devient une sortie de stock tracée ; les autres
-          s’associent à la main. Une connexion directe à votre caisse se met en place au cas par cas.
+          Importez une <strong>photo / PDF d’un ticket Z de fin de service</strong> (lu par Gemini Flash) ou un export caisse CSV/TXT (Lightspeed, L’Addition, Zelty). Chaque ligne reconnue devient une sortie de stock tracée après votre validation.
         </p>
 
         <div className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-border bg-surface-2/40 p-6 text-center">
-          <UploadCloud className="mb-2 size-10 text-brand opacity-80" />
-          <p className="text-sm font-medium text-ink">Rapport de ventes (CSV ou TXT)</p>
-          <p className="mt-1 text-xs text-muted">Colonnes : Article ; Quantité ; Code PLU (facultatif). Séparateur point-virgule, virgule ou tabulation.</p>
-          <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-            <label className="cursor-pointer rounded-xl border border-border bg-surface px-4 py-2 text-xs font-semibold transition-colors hover:bg-surface-2">
-              <span>Choisir un fichier</span>
-              <input type="file" accept=".csv,.txt,text/csv,text/plain" onChange={handleFileUpload} className="sr-only" />
-            </label>
-            {(demo || org.isDemo) && (
-              <>
-                <span className="text-xs text-muted">ou</span>
-                <button type="button" onClick={() => load(DEMO_POS_CSV, 'exemple-service.csv')} className="flex items-center gap-1.5 text-xs font-medium text-brand hover:underline">
-                  <Sparkles className="size-3.5" />
-                  Charger un exemple de service
-                </button>
-              </>
-            )}
-          </div>
+          {analyzingAi ? (
+            <div className="flex flex-col items-center gap-2 py-2">
+              <Spinner className="size-8 text-brand" />
+              <p className="text-sm font-medium text-ink">Lecture optique du ticket de caisse par Gemini Flash…</p>
+              <p className="text-xs text-muted">Extraction des cuvées, millésimes et quantités vendues</p>
+            </div>
+          ) : (
+            <>
+              <UploadCloud className="mb-2 size-10 text-brand opacity-80" />
+              <p className="text-sm font-medium text-ink">Photo / PDF de Ticket Z de Caisse ou Export CSV / TXT</p>
+              <p className="mt-1 text-xs text-muted">Formats acceptés : Photo (JPG, PNG, WebP), PDF, CSV ou TXT.</p>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+                <label className="cursor-pointer rounded-xl border border-border bg-surface px-4 py-2 text-xs font-semibold transition-colors hover:bg-surface-2">
+                  <span>Choisir un ticket (Photo, PDF, CSV)</span>
+                  <input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.csv,.txt,application/pdf,image/*,text/csv,text/plain" onChange={handleFileUpload} className="sr-only" />
+                </label>
+                {(demo || org.isDemo) && (
+                  <>
+                    <span className="text-xs text-muted">ou</span>
+                    <button
+                      type="button"
+                      onClick={() => load(DEMO_POS_CSV, 'ticket-Z-service-soir-commaraine.pdf', true)}
+                      className="inline-flex items-center gap-1.5 rounded-xl border border-brand/30 bg-brand-soft/60 px-3.5 py-2 text-xs font-semibold text-brand transition hover:bg-brand-soft"
+                    >
+                      <Sparkles className="size-3.5" />
+                      Simuler un Ticket Z de fin de service (IA)
+                    </button>
+                  </>
+                )}
+              </div>
+            </>
+          )}
         </div>
 
         {lines.length > 0 && (
           <div className="space-y-3">
+            {source?.isAiTicket && (
+              <div className="flex items-center justify-between gap-2 rounded-xl border border-brand/25 bg-brand-soft/40 px-3.5 py-2.5 text-xs">
+                <span className="flex items-center gap-2 font-medium text-ink">
+                  <Receipt className="size-4 text-brand" />
+                  <span>Extraction IA Gemini Flash · Ticket de clôture caisse ({source.fileName})</span>
+                </span>
+                <Badge tone="ok">{matchedCount}/{lines.length} reconnues en cave</Badge>
+              </div>
+            )}
             {already && (
               <div role="alert" className="rounded-xl border border-bad/40 bg-bad/10 px-4 py-3 text-sm text-bad">
                 Ce rapport a déjà été importé le {dateFr(already.createdAt)} par {already.userName} : aucune nouvelle sortie ne sera enregistrée.

@@ -9,43 +9,59 @@ import { AllocationModal } from './AllocationModal';
 
 const DEMO_ALLOCATIONS: WineAllocation[] = [
   {
-    id: 'alloc_drc_1',
-    producerName: 'Domaine de la Romanée-Conti',
-    cuveeName: 'Romanée-Conti Grand Cru',
-    vintage: '2021',
+    id: 'alloc_commaraine_1',
+    producerName: 'Château de La Commaraine',
+    cuveeName: 'Pommard 1er Cru Clos de la Commaraine (Monopole)',
+    vintage: '2022',
     formatCl: 75,
-    campaignYear: 2024,
-    quotaBottles: 3,
-    orderedBottles: 3,
-    receivedBottles: 0,
-    unitPriceHT: 4200,
+    campaignYear: 2026,
+    quotaBottles: 36,
+    orderedBottles: 36,
+    receivedBottles: 24,
+    unitPriceHT: 82,
     status: 'confirmed',
-    deadlineDate: '2024-03-31',
-    notes: 'Allocation historique 3 bouteilles. Livraison automne.',
-    createdAt: Date.now() - 60 * 86400000,
+    deadlineDate: '2026-11-30',
+    notes: 'Dotation prioritaire Tables du Château & Caveau (solde 12 btl à réceptionner).',
+    createdAt: Date.now() - 30 * 86400000,
   },
   {
-    id: 'alloc_drc_2',
+    id: 'alloc_drc_1',
     producerName: 'Domaine de la Romanée-Conti',
-    cuveeName: 'La Tâche Grand Cru',
+    cuveeName: 'La Tâche Grand Cru (Monopole)',
     vintage: '2021',
     formatCl: 75,
-    campaignYear: 2024,
+    campaignYear: 2026,
     quotaBottles: 6,
     orderedBottles: 6,
     receivedBottles: 6,
-    unitPriceHT: 1950,
+    unitPriceHT: 1850,
     status: 'delivered',
-    notes: 'Reçu en cave voûtée centrale.',
+    notes: 'Caisse bois scellée (CBO) reçue en cave voûtée centrale — flacons numérotés.',
     createdAt: Date.now() - 60 * 86400000,
+  },
+  {
+    id: 'alloc_leflaive_1',
+    producerName: 'Domaine Leflaive',
+    cuveeName: 'Puligny-Montrachet & 1er Cru Clavoillon',
+    vintage: '2022',
+    formatCl: 75,
+    campaignYear: 2026,
+    quotaBottles: 24,
+    orderedBottles: 24,
+    receivedBottles: 12,
+    unitPriceHT: 135,
+    status: 'confirmed',
+    deadlineDate: '2026-12-15',
+    notes: '1re tranche livrée pour la verticale Table Gastronomique.',
+    createdAt: Date.now() - 40 * 86400000,
   },
   {
     id: 'alloc_coche_1',
     producerName: 'Domaine Coche-Dury',
-    cuveeName: 'Meursault Les Rougeots',
-    vintage: '2021',
+    cuveeName: 'Meursault & Bourgogne Blanc',
+    vintage: '2022',
     formatCl: 75,
-    campaignYear: 2024,
+    campaignYear: 2026,
     quotaBottles: 12,
     orderedBottles: 12,
     receivedBottles: 6,
@@ -60,28 +76,14 @@ const DEMO_ALLOCATIONS: WineAllocation[] = [
     cuveeName: 'Chambolle-Musigny 1er Cru Les Amoureuses',
     vintage: '2022',
     formatCl: 75,
-    campaignYear: 2024,
+    campaignYear: 2026,
     quotaBottles: 6,
     orderedBottles: 6,
     receivedBottles: 0,
     unitPriceHT: 1100,
     status: 'confirmed',
-    notes: 'Souscription primeur confirmée.',
-    createdAt: Date.now() - 30 * 86400000,
-  },
-  {
-    id: 'alloc_selosse_1',
-    producerName: 'Champagne Jacques Selosse',
-    cuveeName: 'Substance Blanc de Blancs Grand Cru',
-    vintage: 'NM',
-    formatCl: 75,
-    campaignYear: 2024,
-    quotaBottles: 18,
-    orderedBottles: 18,
-    receivedBottles: 18,
-    unitPriceHT: 320,
-    status: 'delivered',
-    createdAt: Date.now() - 80 * 86400000,
+    notes: 'Souscription primeur confirmée — livraison hiver.',
+    createdAt: Date.now() - 20 * 86400000,
   },
 ];
 
@@ -90,7 +92,7 @@ export function AllocationsPanel() {
   const { commit, path } = useOrg();
   const { rows: savedAllocations } = useCollection<WineAllocation>('allocations');
 
-  const [campaignYear, setCampaignYear] = useState<string>('2024');
+  const [campaignYear, setCampaignYear] = useState<string>('2026');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [query, setQuery] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
@@ -157,7 +159,16 @@ export function AllocationsPanel() {
     };
 
     try {
+      const seedOthers =
+        savedAllocations.length === 0
+          ? DEMO_ALLOCATIONS.filter((a) => a.id !== alloc.id).map((a) => ({
+              op: 'set' as const,
+              path: path('allocations', a.id),
+              data: JSON.parse(JSON.stringify(a)),
+            }))
+          : [];
       await commit([
+        ...seedOthers,
         {
           op: 'set',
           path: path('allocations', alloc.id),

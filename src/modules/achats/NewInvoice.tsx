@@ -2,6 +2,7 @@ import { useRef, useState, type DragEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { ArrowLeft, FileUp, PenLine, Sparkles } from 'lucide-react';
 import { useCollection, useOrg } from '@/app/org';
+import { useAuth } from '@/app/auth';
 import { useT } from '@/i18n';
 import { Button, Card, EmptyState, PageHeader, Spinner } from '@/ui';
 import type { PurchaseInvoice } from '@/types';
@@ -10,6 +11,55 @@ import { parseCsv, today } from '@/lib/utils';
 import { emptyDraft, invoiceToDraft, parseTabular, toDraft } from './logic';
 import type { InvoiceDraft, ParsedInvoice } from './types';
 import { Review } from './Review';
+
+const DEMO_PARSED_INVOICE: ParsedInvoice = {
+  supplierName: 'Grands Terroirs de Bourgogne',
+  number: 'FAC-2026-0842',
+  date: today(),
+  dueDate: today(),
+  shippingHT: 45,
+  totalHT: 3465,
+  totalVAT: 693,
+  totalTTC: 4158,
+  lines: [
+    {
+      description: 'Domaine Leflaive — Puligny-Montrachet 2020 (75cl)',
+      producer: 'Domaine Leflaive',
+      cuvee: 'Puligny-Montrachet',
+      vintage: '2020',
+      formatCl: 75,
+      color: 'blanc',
+      region: 'Bourgogne',
+      qty: 12,
+      unitPriceHT: 132,
+      vatRate: 20,
+    },
+    {
+      description: 'Château de La Commaraine — Pommard 1er Cru Clos de la Commaraine 2021 (75cl)',
+      producer: 'Château de La Commaraine',
+      cuvee: 'Pommard 1er Cru Clos de la Commaraine',
+      vintage: '2021',
+      formatCl: 75,
+      color: 'rouge',
+      region: 'Bourgogne',
+      qty: 12,
+      unitPriceHT: 82,
+      vatRate: 20,
+    },
+    {
+      description: 'Domaine Jean-Marc Roulot — Meursault Les Luchets 2021 (75cl)',
+      producer: 'Domaine Jean-Marc Roulot',
+      cuvee: 'Meursault Les Luchets',
+      vintage: '2021',
+      formatCl: 75,
+      color: 'blanc',
+      region: 'Bourgogne',
+      qty: 6,
+      unitPriceHT: 142,
+      vatRate: 20,
+    },
+  ],
+};
 
 const MAX_BYTES = 18 * 1024 * 1024;
 const AI_MIMES = ['application/pdf', 'image/png', 'image/jpeg', 'image/webp'];
@@ -27,6 +77,7 @@ async function readTable(file: File): Promise<string[][]> {
 export default function NewInvoice() {
   const t = useT();
   const { id } = useParams();
+  const { demo } = useAuth();
   const { org, sites, wines, activeSiteId } = useOrg();
   const { rows: invoices, loading } = useCollection<PurchaseInvoice>('purchaseInvoices');
   const siteId = activeSiteId !== 'all' && sites.some((s) => s.id === activeSiteId) ? activeSiteId : (sites[0]?.id ?? '');
@@ -120,6 +171,15 @@ export default function NewInvoice() {
               <Button icon={<PenLine className="size-4" />} onClick={() => setDraft(emptyDraft(siteId, today(), org.defaultVatRate))}>
                 {t('achats.import.manual')}
               </Button>
+              {(demo || org.isDemo) && (
+                <Button
+                  variant="secondary"
+                  icon={<Sparkles className="size-4 text-brand" />}
+                  onClick={() => setDraft(toDraft(DEMO_PARSED_INVOICE, wines, opts('facture-allocation-bourgogne-2026.pdf')))}
+                >
+                  Simuler une facture Domaine (IA)
+                </Button>
+              )}
             </div>
           </>
         )}
