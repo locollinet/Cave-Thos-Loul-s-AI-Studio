@@ -553,8 +553,9 @@ function DataTab() {
   const { t, intl } = useI18n();
   const { toast, confirm } = useToast();
   const { demo, user } = useAuth();
-  const { org, wines, stock, store, path, role, canSeeCosts } = useOrg();
+  const { org, sites, wines, partners, stock, orgs, store, path, role, canSeeCosts } = useOrg();
   const [busy, setBusy] = useState(false);
+  const [sandboxBusy, setSandboxBusy] = useState(false);
   const [deletion, setDeletion] = useState<DeletionRequest | null>(null);
 
   useEffect(() => {
@@ -621,8 +622,80 @@ function DataTab() {
     }
   };
 
+  const createSandbox = async () => {
+    if (!user) return;
+    setSandboxBusy(true);
+    try {
+      const { createFullSandboxOrg } = await import('@/data/demoSandbox');
+      await createFullSandboxOrg(store, user);
+      toast('Base de test complète créée et ouverte !', 'ok');
+    } catch (e) {
+      toast((e as Error).message, 'bad');
+    } finally {
+      setSandboxBusy(false);
+    }
+  };
+
+  const completeHere = async () => {
+    if (!user) return;
+    setSandboxBusy(true);
+    try {
+      const { completeOrgDemoData } = await import('@/data/demoSandbox');
+      const count = await completeOrgDemoData(store, org, sites, wines, partners, stock, user);
+      toast(count > 0 ? `${count} éléments fictifs ajoutés pour compléter les modules.` : 'Toutes les données fictives sont déjà présentes.', 'ok');
+    } catch (e) {
+      toast((e as Error).message, 'bad');
+    } finally {
+      setSandboxBusy(false);
+    }
+  };
+
+  const removeSandbox = async () => {
+    if (!user) return;
+    const ok = await confirm({
+      title: `Supprimer « ${org.name} » ?`,
+      message: 'Toutes les données fictives de cette base de test seront supprimées et votre compte reviendra sur votre organisation principale.',
+      confirmLabel: 'Supprimer la base de test',
+      danger: true,
+    });
+    if (!ok) return;
+    setSandboxBusy(true);
+    try {
+      const { deleteSandboxOrg } = await import('@/data/demoSandbox');
+      const fallback = orgs.find((o) => o.id !== org.id)?.id;
+      await deleteSandboxOrg(store, org.id, user, fallback);
+      toast('Base de test supprimée.', 'ok');
+    } catch (e) {
+      toast((e as Error).message, 'bad');
+    } finally {
+      setSandboxBusy(false);
+    }
+  };
+
   return (
     <div className="grid gap-4 sm:grid-cols-2">
+      <Card className="p-5 sm:col-span-2 border-brand/25 bg-brand-soft/20">
+        <div className="font-medium">Base de test complète (Bac à Sable)</div>
+        <p className="mb-3 mt-1 text-sm text-muted">
+          Créez une organisation isolée pré-remplie pour tester 100 % des modules (Compta, TVA, DRM &amp; Spiritueux, Négoce, Factur-X, Carte FR/EN/IT, Service, Doublons, Photos, Allocations) et supprimez-la en 1 clic quand vous avez fini, sans toucher à vos données réelles.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="primary" onClick={createSandbox} loading={sandboxBusy}>
+            Créer &amp; ouvrir une base de test complète
+          </Button>
+          {(demo || org.isDemo || user?.isPlatformAdmin) && (
+            <Button variant="secondary" onClick={completeHere} loading={sandboxBusy}>
+              Compléter les modules vides ici
+            </Button>
+          )}
+          {org.isDemo && (
+            <Button variant="danger" onClick={removeSandbox} loading={sandboxBusy}>
+              Supprimer cette base de test
+            </Button>
+          )}
+        </div>
+      </Card>
+
       <Card className="p-5">
         <div className="font-medium">{t('settings.exportTitle')}</div>
         <p className="mb-3 mt-1 text-sm text-muted">{t('settings.exportHint')}</p>

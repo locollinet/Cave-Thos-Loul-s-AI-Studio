@@ -50,10 +50,10 @@ describe.each(['negoce', 'independant', 'restaurant', 'chaine'] as OrgProfile[])
     }
   });
 
-  it('adds open bottles for hospitality (wines served by the glass), offers only with trade', () => {
+  it('adds open bottles when carte module is active, offers only with trade', () => {
     const bottles = rows<{ siteId: string; status: string }>('openBottles');
     const offers = rows<{ id: string }>('offers');
-    expect(bottles.length > 0).toBe(profile === 'restaurant' || profile === 'chaine');
+    expect(bottles.length > 0).toBe(PROFILE_MODULES[profile].includes('carte'));
     expect(offers.length > 0).toBe(PROFILE_MODULES[profile].includes('negoce'));
     if (bottles.length) expect(moves.filter((m) => m.reason === 'verre')).toHaveLength(bottles.length);
   });

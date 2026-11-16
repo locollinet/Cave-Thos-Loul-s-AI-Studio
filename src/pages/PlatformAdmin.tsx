@@ -4,7 +4,7 @@ import { useAuth } from '@/app/auth';
 import { useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
 import { Badge, Button, Card, Field, Input, Modal, PageHeader, Select, Table, Td, Th, useToast } from '@/ui';
-import { DEMO_MODELS, type DemoModel } from '@/data/demoModels';
+import { DEMO_MODELS, demoLegalInfo, type DemoModel } from '@/data/demoModels';
 import { uid } from '@/lib/utils';
 import type { Invite, Member, Org, OrgProfile, Site } from '@/types';
 import { emptyLegal } from '@/app/org';
@@ -77,7 +77,7 @@ export default function PlatformAdminPage() {
         modules: PROFILE_MODULES[profile],
         locale: 'fr',
         currency: 'EUR',
-        legal: { ...emptyLegal(), legalName: prospectName.trim() },
+        legal: demoLegalInfo(prospectName.trim()),
         invoicePrefix: 'FAC',
         quotePrefix: 'DEV',
         defaultVatRate: 20,
@@ -180,6 +180,47 @@ export default function PlatformAdminPage() {
     }
   };
 
+  const handleCreateSandbox = async () => {
+    if (!user) return;
+    setBusy(true);
+    try {
+      const { createFullSandboxOrg } = await import('@/data/demoSandbox');
+      await createFullSandboxOrg(store, user);
+      toast('Base de test complète (6 modules) créée et activée !');
+    } catch (e) {
+      toast((e as Error).message, 'bad');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleDeleteDemoOrg = async (targetOrgId: string, orgName: string) => {
+    if (!user) return;
+    const o = await store.getDoc<Org>(`orgs/${targetOrgId}`).catch(() => null);
+    if (!o?.isDemo) {
+      toast('Seules les organisations de démonstration / test peuvent être supprimées d’ici.', 'bad');
+      return;
+    }
+    const ok = await confirm({
+      title: `Supprimer « ${orgName} » ?`,
+      message: 'Toutes les données fictives et liens publics de cette démo seront supprimés.',
+      confirmLabel: 'Supprimer',
+      danger: true,
+    });
+    if (!ok) return;
+    setBusy(true);
+    try {
+      const { deleteSandboxOrg } = await import('@/data/demoSandbox');
+      const fallback = orgs.find((x) => x.id !== targetOrgId)?.id;
+      await deleteSandboxOrg(store, targetOrgId, user, fallback);
+      toast(`Démo « ${orgName} » supprimée.`);
+    } catch (e) {
+      toast((e as Error).message, 'bad');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
@@ -187,9 +228,14 @@ export default function PlatformAdminPage() {
           <PageHeader title="Console Plateforme" />
           <p className="text-sm text-muted">Gestion des organisations, génération de démos prospects personnalisées et suivi commercial.</p>
         </div>
-        <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => { setCreatedLink(''); setModalOpen(true); }}>
-          Créer une démo prospect
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="secondary" onClick={handleCreateSandbox} loading={busy}>
+            Base de test complète (6 modules)
+          </Button>
+          <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => { setCreatedLink(''); setModalOpen(true); }}>
+            Créer une démo prospect
+          </Button>
+        </div>
       </div>
 
       {/* 4 Modèles de démonstration prêts à déployer */}
@@ -269,6 +315,11 @@ export default function PlatformAdminPage() {
                     <Button size="sm" variant="ghost" onClick={() => handleExtendOrg(o.id)} title="Prolonger la démo de 30 jours">
                       <Calendar className="size-4" />
                     </Button>
+                    {orgs.length > 1 && (
+                      <Button size="sm" variant="ghost" onClick={() => handleDeleteDemoOrg(o.id, o.name)} title="Supprimer cette démo" disabled={busy}>
+                        <Trash2 className="size-4 text-bad" />
+                      </Button>
+                    )}
                   </div>
                 </Td>
               </tr>

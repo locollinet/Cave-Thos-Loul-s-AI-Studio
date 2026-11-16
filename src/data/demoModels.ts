@@ -1,4 +1,4 @@
-import type { OrgProfile, Role } from '@/types';
+import type { LegalInfo, OrgProfile, Role } from '@/types';
 
 export interface DemoModel {
   profile: OrgProfile;
@@ -7,6 +7,36 @@ export interface DemoModel {
   headline: string;
   description: string;
   accounts: { role: Role; name: string; email: string }[];
+}
+
+const DEMO_LOGO_SVG = [
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">',
+  '<rect width="64" height="64" rx="14" fill="#581525"/>',
+  '<circle cx="32" cy="32" r="25" fill="none" stroke="#b8924a" stroke-width="1.2"/>',
+  '<text x="32" y="39" text-anchor="middle" font-family="Georgia, serif" font-size="21" fill="#f7f4ef">L&amp;T</text>',
+  '</svg>',
+].join('');
+
+export const DEMO_LOGO_DATA_URL = `data:image/svg+xml;base64,${btoa(DEMO_LOGO_SVG)}`;
+
+export function demoLegalInfo(orgName: string): LegalInfo {
+  return {
+    legalName: `${orgName} SAS`,
+    legalForm: 'SAS',
+    address: '12 rue des Tonneliers',
+    postalCode: '21200',
+    city: 'Beaune',
+    country: 'France',
+    phone: '03 80 00 00 00',
+    email: 'contact@demo-cepia.example',
+    siret: '73282932000074',
+    vatNumber: 'FR44732829320',
+    exciseNumber: 'FR0123456789E',
+    iban: 'FR76 3000 6000 0112 3456 7890 189',
+    bic: 'AGRIFRPP821',
+    legalMentions: 'SAS au capital de 50 000 € — RCS Dijon — L’abus d’alcool est dangereux pour la santé.',
+    logoDataUrl: DEMO_LOGO_DATA_URL,
+  };
 }
 
 export const DEMO_MODELS: Record<OrgProfile, DemoModel> = {

@@ -1,8 +1,9 @@
-import type { InventorySession } from '@/types';
+import type { InventorySession, Movement, StockLevel, Wine } from '@/types';
 import type { Op } from '../store';
 import { round2, uid } from '@/lib/utils';
 import { DEFAULT_CATEGORIES } from '@/modules/compta/accounts';
-import type { Asset, AssetCategory, Expense, PaymentMethodExp } from '@/modules/compta/types';
+import { buildDrm } from '@/modules/compta/drm';
+import type { Asset, AssetCategory, DrmReport, Expense, PaymentMethodExp } from '@/modules/compta/types';
 import { EXPENSE_CATEGORY_NAMES } from './catalog';
 import type { DemoWorld } from './world';
 
@@ -25,18 +26,21 @@ const EXPENSES: ExpenseSeed[] = [
   [230, 'Salon Vins & Terroirs', 'advertising', 'Stand au salon professionnel', 1500, 20, 'virement'],
   [150, 'Télécom Pro', 'telecom', 'Fibre et lignes mobiles — semestre', 360, 20, 'prelevement'],
   [118, 'Cartonnages du Val', 'supplies', 'Cartons 6 et 12 bouteilles, caisses bois', 740, 20, 'carte'],
+  [60, 'Eau & Glace Service', 'supplies', 'Consommables dégustation et eau de source', 180, 5.5, 'carte'],
+  [32, 'Table des Vignerons', 'travel', 'Déjeuner dégustation partenaires (TVA 10 %)', 210, 10, 'carte'],
   [70, 'Froid & Clim Services', 'maintenance', 'Entretien annuel du groupe froid', 380, 20, 'cheque'],
   [25, 'Banque des Vignerons', 'bank', 'Frais de tenue de compte et terminal de paiement', 96, 0, 'prelevement'],
+  [18, 'Petite Caisse Caveau', 'supplies', 'Tire-bouchons, stop-gouttes et fournitures caisse', 140, 20, 'especes'],
 ];
 
 const ASSETS: Record<'trade' | 'group', [number, string, AssetCategory, number, number][]> = {
   trade: [
     [610, 'Cave climatisée (groupe froid et isolation)', 'materiel', 18500, 10],
-    [430, 'Véhicule utilitaire de livraison', 'vehicule', 18000, 5],
+    [45, 'Armoire de vieillissement & présentation', 'materiel', 4800, 5],
   ],
   group: [
     [610, 'Caves de service pour les salles', 'materiel', 14000, 7],
-    [430, 'Agencement du Bar du Palais', 'agencement', 42000, 10],
+    [45, 'Agencement comptoir dégustation & bar', 'agencement', 12000, 10],
   ],
 };
 
@@ -94,4 +98,18 @@ export function inventoryOp(w: DemoWorld, plan: InventoryPlan): Op {
   const closedAt = w.clock.ts(plan.date, 11 * 3_600_000);
   const s: InventorySession = { id: uid(), siteId: w.mainSiteId, name: plan.name, status: 'closed', counts, startedAt: closedAt - 2 * 3_600_000, closedAt, userName: w.actor.userName };
   return { op: 'set', path: `orgs/${w.orgId}/inventories/${s.id}`, data: s as never };
+}
+
+/** Déclaration DRM mensuelle archivée pour le mois précédent, calculée sur les mouvements réels de la démo. */
+export function buildDrmDemoOp(orgId: string, wines: Wine[], stock: StockLevel[], movementOps: Op[], now: number, actorName: string): Op {
+  const d = new Date(now);
+  d.setUTCDate(1);
+  d.setUTCMonth(d.getUTCMonth() - 1);
+  const month = d.toISOString().slice(0, 7);
+  const movements = movementOps
+    .filter((o): o is Extract<Op, { op: 'set' }> => o.op === 'set' && o.path.includes('/movements/'))
+    .map((o) => o.data as unknown as Movement);
+  const rows = buildDrm({ wines, stock, movements, month });
+  const report: DrmReport = { id: month, month, rows, savedAt: now - 5 * 86_400_000, savedBy: actorName };
+  return { op: 'set', path: `orgs/${orgId}/drmReports/${month}`, data: JSON.parse(JSON.stringify(report)) };
 }

@@ -113,7 +113,7 @@ function pickLines(w: DemoWorld, client: Partner, n: number, force: string[] = [
   const chosen: Wine[] = force.map((k) => w.wineByKey.get(k)).filter((x): x is Wine => !!x);
   const pool = w.wines
     .map((wine) => ({ wine, s: w.seedById.get(wine.id)! }))
-    .filter(({ s }) => !NOT_RANDOM.has(s.key) && (!pro || s.buy <= 250))
+    .filter(({ s }) => !NOT_RANDOM.has(s.key) && !s.isArchived && !s.isPreSale && !s.key.endsWith('-dup') && (!pro || s.buy <= 250))
     .map(({ wine, s }) => ({ wine, s, weight: pro ? (s.buy < 60 ? 5 : s.buy < 150 ? 3 : 1) : s.buy < 60 ? 3 : s.buy < 250 ? 3 : 1 }));
   let guard = 0;
   const wanted = Math.max(pro ? n + 1 : n, force.length);
@@ -300,7 +300,7 @@ export function buildSales(w: DemoWorld, withConsignments: boolean): SalesResult
   };
   for (const { d: inv, spec } of invoices) {
     const pro = inv.partnerType !== 'particulier';
-    const method: PaymentMethod = pro ? (w.rng.chance(0.8) ? 'virement' : 'cheque') : w.rng.chance(0.6) ? 'carte' : 'virement';
+    const method: PaymentMethod = pro ? (w.rng.chance(0.8) ? 'virement' : 'cheque') : spec.ago <= 15 ? 'especes' : w.rng.chance(0.6) ? 'carte' : 'virement';
     const credit = credits.get(inv.id);
     const balance = round2(inv.totalTTC - (credit?.totalTTC ?? 0));
     const terms = inv.paymentTermsDays;

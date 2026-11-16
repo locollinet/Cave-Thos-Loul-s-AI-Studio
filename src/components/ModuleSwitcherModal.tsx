@@ -81,7 +81,7 @@ export const PRESET_PROFILES: ProfilePreset[] = [
 export function ModuleSwitcherModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useI18n();
   const { toast, confirm } = useToast();
-  const { org, updateOrg, store, sites, setActiveSiteId } = useOrg();
+  const { org, updateOrg, store, sites, wines, partners, stock, setActiveSiteId } = useOrg();
   const { demo, user } = useAuth();
   const nav = useNavigate();
   const [reloadingDemo, setReloadingDemo] = useState(false);
@@ -105,6 +105,14 @@ export function ModuleSwitcherModal({ open, onClose }: { open: boolean; onClose:
       modules: preset.modules,
       ...(preset.id !== 'all' ? { profile: preset.id as OrgProfile } : {}),
     });
+    if (preset.id === 'all' && user && (demo || org.isDemo || user.isPlatformAdmin)) {
+      const { completeOrgDemoData } = await import('@/data/demoSandbox');
+      const added = await completeOrgDemoData(store, org, sites, wines, partners, stock, user).catch(() => 0);
+      if (added > 0) {
+        toast(`Suite complète activée + ${added} données fictives ajoutées pour les modules vides !`, 'ok');
+        return;
+      }
+    }
     toast(`Configuration « ${preset.label} » appliquée (${preset.modules.length} modules activés)`, 'ok');
   };
 

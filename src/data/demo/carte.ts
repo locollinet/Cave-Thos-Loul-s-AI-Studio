@@ -31,9 +31,48 @@ export function buildCarte(
     useBrand: true,
     groupBy: 'region',
     showDescription: true,
+    languages: ['it'],
+    translations: {
+      en: {
+        'list.name': 'Wine List',
+        'theme.tagline': 'Fine wines & sommelier selection',
+        'theme.footer': 'Net prices in euros, service included. Drink responsibly.',
+      },
+      it: {
+        'list.name': 'Carta dei Vini',
+        'theme.tagline': 'Grandi vini & selezione del sommelier',
+        'theme.footer': 'Prezzi netti in euro, servizio incluso. Bere responsabilmente.',
+      },
+    },
     pinnedWineIds: PINNED.map((k) => wineByKey.get(k)?.id).filter((x): x is string => !!x),
   };
   const sections = buildListSections(draft, wines, stock, org);
   const { ops, list } = publishOps(orgId, org, draft, sections, now);
   return { ops: [{ op: 'set', path: `orgs/${orgId}`, data: { brand: DEMO_BRAND }, merge: true }, ...ops], list };
+}
+
+/** Carte secondaire dédiée à un site (ex. Bar, Lounge ou Hôtel du groupe) pour le multi-cartes. */
+export function buildSecondaryCarte(
+  orgId: string,
+  orgName: string,
+  siteId: string,
+  title: string,
+  wines: Wine[],
+  stock: StockLevel[],
+  now: number,
+): Op[] {
+  const org: Pick<Org, 'id' | 'name' | 'brand' | 'defaultVatRate'> = { id: orgId, name: orgName, brand: DEMO_BRAND, defaultVatRate: 20 };
+  const draft: WineList = {
+    ...defaultWineList('fr', title, org),
+    id: uid(),
+    kind: 'bar',
+    siteIds: [siteId],
+    template: 'palace',
+    useBrand: true,
+    groupBy: 'color',
+    showDescription: true,
+    languages: ['it'],
+  };
+  const sections = buildListSections(draft, wines, stock, org);
+  return publishOps(orgId, org, draft, sections, now).ops;
 }

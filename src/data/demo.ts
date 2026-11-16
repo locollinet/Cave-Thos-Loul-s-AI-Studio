@@ -1,4 +1,4 @@
-import type { OrgProfile, Partner, Producer, RareBottle, Site, StockLevel, Wine, WineAllocation } from '@/types';
+import type { ModuleId, OrgProfile, Partner, Producer, RareBottle, Site, StockLevel, Wine, WineAllocation } from '@/types';
 import type { Op } from './store';
 import type { WineList } from '@/modules/carte/types';
 import { canonicalKey } from '@/lib/wine';
@@ -10,9 +10,10 @@ import { DEMO_ACTOR, type DemoWorld } from './demo/world';
 import { buildSales } from './demo/sales';
 import { buildHospitalityDemand, type SecondarySite, type Target } from './demo/hospitality';
 import { buildPurchases } from './demo/purchases';
-import { buildCompta, inventoryOp, planInventory } from './demo/backoffice';
+import { buildCompta, buildDrmDemoOp, inventoryOp, planInventory } from './demo/backoffice';
 import { buildCarte } from './demo/carte';
 import { formatBinSummary, generateRackSlots } from '@/lib/cellar';
+import type { WineImageDoc } from '@/lib/image';
 
 /** Contexte exposé aux compléments de démo (offres, bouteilles ouvertes…), une fois le stock final connu. */
 export interface DemoContext {
@@ -38,6 +39,8 @@ export interface DemoOptions {
   /** Nom de l'établissement, repris dans l'instantané public de la carte (republié automatiquement sinon). */
   orgName?: string;
   now?: number;
+  /** Modules actifs : s'ils sont fournis, les jeux Carte/Négoce/Compta suivent les modules cochés. */
+  modules?: ModuleId[];
   /** Écritures complémentaires ajoutées à la fin du lot (ex. buildServiceDemoOps). */
   extras?: (ctx: DemoContext) => Op[];
   /** Auteur des mouvements ; sur Firebase, l'utilisateur connecté (les règles exigent sa signature). */
@@ -47,6 +50,42 @@ export interface DemoOptions {
 const HOSPITALITY: OrgProfile[] = ['restaurant', 'chaine'];
 const OPENING_AGO = 365;
 const CHAIN_HOTEL_WINES = ['fevre-montmains', 'leflaive-puligny', 'huet-haut-lieu', 'zind-windsbuhl', 'jamet-cote-rotie', 'lascases', 'mas-jullien', 'lapierre-morgon', 'tempier-rose', 'ruinart-bdb', 'dujac-gevrey'];
+const PRODUCER_COEFS: Record<string, number> = { 'Domaine Leflaive': 2.1, 'Champagne Krug': 1.8 };
+
+function toBase64Utf8(str: string): string {
+  const bytes = new TextEncoder().encode(str);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+
+const escXml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+function makeDemoLabelDoc(wine: Wine, style: NonNullable<WineSeed['image']>, now: number): WineImageDoc {
+  const svg = [
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 480" width="360" height="480">`,
+    `<rect width="360" height="480" rx="14" fill="${style.bg}"/>`,
+    `<rect x="18" y="18" width="324" height="444" rx="8" fill="none" stroke="${style.accent}" stroke-width="2"/>`,
+    `<rect x="26" y="26" width="308" height="428" rx="6" fill="none" stroke="${style.accent}" stroke-width="0.8" opacity="0.6"/>`,
+    `<text x="180" y="92" text-anchor="middle" font-family="Georgia, serif" font-size="13" letter-spacing="4" fill="${style.accent}">${escXml((wine.region ?? 'FRANCE').toUpperCase())}</text>`,
+    `<text x="180" y="165" text-anchor="middle" font-family="Georgia, serif" font-style="italic" font-size="22" fill="#1c1517">${escXml(wine.producer.slice(0, 28))}</text>`,
+    `<line x1="95" y1="195" x2="265" y2="195" stroke="${style.accent}" stroke-width="1.2"/>`,
+    `<text x="180" y="250" text-anchor="middle" font-family="Georgia, serif" font-weight="bold" font-size="24" fill="${style.accent}">${escXml(wine.name.slice(0, 24))}</text>`,
+    `<text x="180" y="292" text-anchor="middle" font-family="Georgia, serif" font-size="15" fill="#5c534e">${escXml((wine.appellation ?? '').slice(0, 30))}</text>`,
+    `<text x="180" y="365" text-anchor="middle" font-family="Georgia, serif" font-size="38" fill="#1c1517">${escXml(wine.vintage)}</text>`,
+    `<text x="180" y="425" text-anchor="middle" font-family="sans-serif" font-size="11" letter-spacing="2" fill="#6f655f">${wine.formatCl} CL · GRAND VIN</text>`,
+    `</svg>`,
+  ].join('');
+  return {
+    wineId: wine.id,
+    dataUrl: `data:image/svg+xml;base64,${toBase64Utf8(svg)}`,
+    mimeType: 'image/svg+xml',
+    width: 360,
+    height: 480,
+    source: 'label',
+    updatedAt: now,
+  };
+}
 
 /** Prix carte TTC : coefficient dégressif avec le prix d'achat, arrondi. */
 function menuPrice(buyHT: number): number {
@@ -67,6 +106,9 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
   const clock = makeClock(now);
   const rng = makeRng(seedOf(profile));
   const hospitality = HOSPITALITY.includes(profile);
+  const includeCarte = opts.modules ? opts.modules.includes('carte') : hospitality;
+  const includeNegoce = opts.modules ? opts.modules.includes('negoce') : profile === 'negoce' || profile === 'independant';
+  const includeCompta = opts.modules ? opts.modules.includes('compta') : profile === 'negoce' || profile === 'independant' || profile === 'chaine';
   const base = `orgs/${orgId}`;
   const created = now - OPENING_AGO * 86_400_000;
 
@@ -88,6 +130,9 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
           cols: 6,
           doubleDepth: true,
           staggered: true,
+          zone: 'Caveau Grands Crus',
+          temperatureC: 12.5,
+          humidityPct: 75,
         },
         {
           id: 'rack-matrix-a',
@@ -98,6 +143,9 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
           cols: 6,
           doubleDepth: true,
           staggered: false,
+          zone: 'Cave principale',
+          temperatureC: 13,
+          humidityPct: 72,
         },
         {
           id: 'rack-bulk-reserve',
@@ -108,6 +156,9 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
           cols: 4,
           doubleDepth: false,
           staggered: false,
+          zone: 'Réserve CBO',
+          temperatureC: 12,
+          humidityPct: 76,
         },
       ],
     },
@@ -131,6 +182,9 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
             cols: 6,
             doubleDepth: true,
             staggered: true,
+            zone: kind === 'bar' ? 'Bar' : 'Salle',
+            temperatureC: kind === 'bar' ? 11 : 14,
+            humidityPct: 70,
           },
           {
             id: `rack-travee-${id}`,
@@ -141,6 +195,9 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
             cols: 6,
             doubleDepth: false,
             staggered: false,
+            zone: 'Office',
+            temperatureC: 14,
+            humidityPct: 68,
           },
         ],
       },
@@ -171,12 +228,14 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
   /* ---------------------------------------------------------- référentiel */
   const producers = new Map<string, Producer>();
   const wines: Wine[] = [];
+  const wineImageOps: Op[] = [];
   const seedById = new Map<string, WineSeed>();
   const wineByKey = new Map<string, Wine>();
   WINE_SEEDS.forEach((s, i) => {
     let p = producers.get(s.producer);
     if (!p) {
-      p = { id: uid(), name: s.producer, region: s.region, country: s.country, createdAt: created };
+      const coefficient = PRODUCER_COEFS[s.producer];
+      p = { id: uid(), name: s.producer, region: s.region, country: s.country, ...(coefficient !== undefined ? { coefficient } : {}), createdAt: created };
       producers.set(s.producer, p);
     }
     const formatCl = s.format ?? 75;
@@ -194,16 +253,23 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
       subRegion: s.subRegion,
       country: s.country,
       grapes: s.grapes,
+      abv: s.abv,
+      ean: s.ean,
+      posCode: s.posCode,
+      allergens: s.allergens,
+      hasImage: !!s.image,
       buyPriceHT: buy,
-      sellPriceHT: round2(buy * 1.6),
+      sellPriceHT: round2(buy * (PRODUCER_COEFS[s.producer] ?? 1.6)),
       alertThreshold: buy > 150 ? 1 : 6,
       apogeeFrom: s.apogee?.[0],
       apogeeTo: s.apogee?.[1],
       technicalSheet: s.sheet ? { ...s.sheet, generatedByAI: false } : undefined,
-      menuPriceTTC: hospitality ? menuPrice(buy) : undefined,
-      byGlass: hospitality && s.glass ? { enabled: true, glassCl: 12.5, priceTTC: s.glass } : undefined,
+      menuPriceTTC: includeCarte && !s.isArchived && !s.isPreSale ? menuPrice(buy) : undefined,
+      byGlass: includeCarte && s.glass && !s.isArchived && !s.isPreSale ? { enabled: true, glassCl: 12.5, priceTTC: s.glass } : undefined,
       hideFromMenu: s.key === 'commaraine-clos-2021' || s.key === 'roulot-luchets-2021', // En garde dans la cave voûtée
       isExceptional: ['drc-tache', 'commaraine-clos-2017', 'cristal', 'yquem'].includes(s.key) || undefined,
+      isPreSale: s.isPreSale,
+      isArchived: s.isArchived,
       canonicalKey: '',
       createdAt: created + i * 60_000,
       updatedAt: now,
@@ -212,6 +278,9 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
     wines.push(w);
     seedById.set(w.id, s);
     wineByKey.set(s.key, w);
+    if (s.image) {
+      wineImageOps.push({ op: 'set', path: `${base}/wineImages/${w.id}`, data: makeDemoLabelDoc(w, s.image, now) as unknown as Record<string, unknown> });
+    }
   });
 
   /* ---------------------------------------------------------- partenaires */
@@ -230,12 +299,13 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
   const ops: Op[] = [];
   let targets: Target[] = wines.map((w) => ({ wineId: w.id, siteId: mainSiteId, target: seedById.get(w.id)!.qty }));
   const salesOps: Op[] = [];
-  if (profile === 'negoce' || profile === 'independant') {
-    salesOps.push(...buildSales(world, profile === 'independant').ops);
-  } else {
+  if (includeNegoce) {
+    salesOps.push(...buildSales(world, profile === 'independant' || !!opts.modules).ops);
+  }
+  if (hospitality) {
     const servable = (w: Wine) => {
       const s = seedById.get(w.id)!;
-      return w.formatCl === 75 && s.buy <= 150 && (w.color === 'bulles' || w.color === 'rose' || !!s.glass);
+      return !s.isArchived && !s.isPreSale && w.formatCl === 75 && s.buy <= 150 && (w.color === 'bulles' || w.color === 'rose' || !!s.glass);
     };
     const secondaries: SecondarySite[] = [];
     if (profile === 'restaurant' && bar) {
@@ -341,23 +411,23 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
   /* ---------------------------------------------------------- assemblage */
   let wineList: WineList | undefined;
   const carteOps: Op[] = [];
-  if (hospitality) {
+  if (includeCarte) {
     const carte = buildCarte(orgId, opts.orgName ?? '', wines, wineByKey, stock, now);
     carteOps.push(...carte.ops);
     wineList = carte.list;
   }
 
   const rareBottleOps: Op[] = [
-    { key: 'drc-tache', number: '00418 / 01850', bin: 'ARM-R1-C1', conditionLevel: 'goulot' as const, conditionLabel: 'parfaite' as const, conditionCapsule: 'integre' as const, cbo: true, provenance: 'Allocation directe Domaine de la Romanée-Conti' },
-    { key: 'commaraine-clos-2017', number: '00112 / 02400', bin: 'ARM-R1-C2', conditionLevel: 'goulot' as const, conditionLabel: 'parfaite' as const, conditionCapsule: 'ciree' as const, cbo: true, provenance: 'Réserve historique du Château (Monopole)' },
-    { key: 'cristal', number: 'CR-2013-089', bin: 'ARM-R2-C1', conditionLevel: 'goulot' as const, conditionLabel: 'parfaite' as const, conditionCapsule: 'integre' as const, cbo: true, provenance: 'Maison Louis Roederer — Reims' },
-    { key: 'yquem', number: 'YQ-2014-014', bin: 'ARM-R2-C2', conditionLevel: 'bas_goulot' as const, conditionLabel: 'parfaite' as const, conditionCapsule: 'integre' as const, cbo: false, provenance: 'Place de Bordeaux' },
+    { key: 'drc-tache', id: 'rb-drc-tache', number: '00418 / 01850', bin: 'ARM-R1-C1', conditionLevel: 'goulot' as const, conditionLabel: 'parfaite' as const, conditionCapsule: 'integre' as const, cbo: true, provenance: 'Allocation directe Domaine de la Romanée-Conti', status: 'in_cellar' as const },
+    { key: 'commaraine-clos-2017', id: 'rb-commaraine-clos-2017', number: '00112 / 02400', bin: 'ARM-R1-C2', conditionLevel: 'goulot' as const, conditionLabel: 'parfaite' as const, conditionCapsule: 'ciree' as const, cbo: true, provenance: 'Réserve historique du Château (Monopole)', status: 'in_cellar' as const },
+    { key: 'commaraine-clos-2017', id: 'rb-commaraine-clos-2017-served', number: '00098 / 02400', bin: 'ARM-R1-C2', conditionLevel: 'goulot' as const, conditionLabel: 'parfaite' as const, conditionCapsule: 'ciree' as const, cbo: true, provenance: 'Réserve historique du Château (Monopole)', status: 'served' as const },
+    { key: 'cristal', id: 'rb-cristal', number: 'CR-2013-089', bin: 'ARM-R2-C1', conditionLevel: 'goulot' as const, conditionLabel: 'parfaite' as const, conditionCapsule: 'integre' as const, cbo: true, provenance: 'Maison Louis Roederer — Reims', status: 'in_cellar' as const },
+    { key: 'yquem', id: 'rb-yquem', number: 'YQ-2014-014', bin: 'ARM-R2-C2', conditionLevel: 'bas_goulot' as const, conditionLabel: 'parfaite' as const, conditionCapsule: 'integre' as const, cbo: false, provenance: 'Place de Bordeaux', status: 'in_cellar' as const },
   ].flatMap((b) => {
     const w = wineByKey.get(b.key);
     if (!w) return [];
-    const id = `rb-${b.key}`;
     const doc: RareBottle = {
-      id,
+      id: b.id,
       wineId: w.id,
       siteId: mainSiteId,
       bin: b.bin,
@@ -367,17 +437,19 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
       conditionCapsule: b.conditionCapsule,
       cbo: b.cbo,
       provenance: b.provenance,
-      status: 'in_cellar',
+      status: b.status,
+      ...(b.status === 'served' ? { servedAt: now - 14 * 86_400_000, servedBy: actor.userName } : {}),
       createdAt: created,
       updatedAt: now,
     };
     return [{
       op: 'set' as const,
-      path: `${base}/bottles/${id}`,
+      path: `${base}/bottles/${b.id}`,
       data: doc as unknown as Record<string, unknown>,
     }];
   });
 
+  const campaignYear = new Date(now).getUTCFullYear();
   const allocationOps: Op[] = (
     [
       {
@@ -386,13 +458,13 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
         cuveeName: 'Pommard 1er Cru Clos de la Commaraine (Monopole)',
         vintage: '2022',
         formatCl: 75,
-        campaignYear: 2026,
+        campaignYear,
         quotaBottles: 36,
         orderedBottles: 36,
         receivedBottles: 24,
         unitPriceHT: 82,
         status: 'confirmed',
-        deadlineDate: '2026-11-30',
+        deadlineDate: `${campaignYear}-11-30`,
         notes: 'Dotation prioritaire Tables du Château & Caveau (solde 12 btl à réceptionner).',
         createdAt: now - 30 * 86_400_000,
       },
@@ -402,7 +474,7 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
         cuveeName: 'La Tâche Grand Cru (Monopole)',
         vintage: '2021',
         formatCl: 75,
-        campaignYear: 2026,
+        campaignYear,
         quotaBottles: 6,
         orderedBottles: 6,
         receivedBottles: 6,
@@ -417,13 +489,13 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
         cuveeName: 'Puligny-Montrachet & 1er Cru Clavoillon',
         vintage: '2022',
         formatCl: 75,
-        campaignYear: 2026,
+        campaignYear,
         quotaBottles: 24,
         orderedBottles: 24,
         receivedBottles: 12,
         unitPriceHT: 135,
         status: 'confirmed',
-        deadlineDate: '2026-12-15',
+        deadlineDate: `${campaignYear}-12-15`,
         notes: '1re tranche livrée pour la verticale Table Gastronomique.',
         createdAt: now - 40 * 86_400_000,
       },
@@ -433,7 +505,7 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
         cuveeName: 'Meursault & Bourgogne Blanc',
         vintage: '2022',
         formatCl: 75,
-        campaignYear: 2026,
+        campaignYear,
         quotaBottles: 12,
         orderedBottles: 12,
         receivedBottles: 6,
@@ -448,7 +520,7 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
         cuveeName: 'Chambolle-Musigny 1er Cru Les Amoureuses',
         vintage: '2022',
         formatCl: 75,
-        campaignYear: 2026,
+        campaignYear,
         quotaBottles: 6,
         orderedBottles: 6,
         receivedBottles: 0,
@@ -456,6 +528,21 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
         status: 'confirmed',
         notes: 'Souscription primeur confirmée — livraison hiver.',
         createdAt: now - 20 * 86_400_000,
+      },
+      {
+        id: 'alloc_raveneau_1',
+        producerName: 'Domaine François Raveneau',
+        cuveeName: 'Chablis 1er Cru Montée de Tonnerre',
+        vintage: '2023',
+        formatCl: 75,
+        campaignYear,
+        quotaBottles: 12,
+        orderedBottles: 0,
+        receivedBottles: 0,
+        unitPriceHT: 160,
+        status: 'pending',
+        notes: 'Demande de quota envoyée au domaine — en attente de confirmation.',
+        createdAt: now - 10 * 86_400_000,
       },
     ] satisfies WineAllocation[]
   ).map((a) => ({
@@ -465,7 +552,7 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
   }));
 
   // Surcharges par site (Lot 4) pour illustrer Cave de garde vs Caveau / Bistrot vs Table Gastro
-  if (hospitality) {
+  if (includeCarte) {
     const clos21 = wineByKey.get('commaraine-clos-2021');
     const drc = wineByKey.get('drc-tache');
     const clos19 = wineByKey.get('commaraine-clos-2019');
@@ -477,6 +564,9 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
         s.byGlass = true;
         s.alertThreshold = 3;
       }
+      if (s.wineId === clos19?.id && gastro && s.siteId === gastro.id) {
+        s.menuPriceTTC = 240;
+      }
     }
   }
 
@@ -484,6 +574,7 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
     ...siteOps,
     ...[...producers.values()].map((p): Op => ({ op: 'set', path: `${base}/producers/${p.id}`, data: p as never })),
     ...wines.map((w): Op => ({ op: 'set', path: `${base}/wines/${w.id}`, data: json(w) })),
+    ...wineImageOps,
     ...rareBottleOps,
     ...allocationOps,
     ...suppliers.map(({ partner }): Op => ({ op: 'set', path: `${base}/partners/${partner.id}`, data: json(partner) })),
@@ -494,8 +585,10 @@ export function buildDemo(orgId: string, mainSiteId: string, profile: OrgProfile
     ...salesOps,
     inventoryOp(world, inventory),
   );
-  if (profile === 'negoce' || profile === 'independant') ops.push(...buildCompta(world, 1, 'trade'));
-  if (profile === 'chaine') ops.push(...buildCompta(world, 2.5, 'group'));
+  if (includeCompta) {
+    ops.push(...buildCompta(world, profile === 'chaine' ? 2.5 : 1, hospitality ? 'group' : 'trade'));
+    ops.push(buildDrmDemoOp(orgId, wines, stock, built.ops, now, actor.userName));
+  }
   ops.push(...carteOps);
 
   const qtyMap = new Map(stock.map((s) => [s.id, s.qty]));

@@ -14,6 +14,7 @@ import type {
   Wine,
 } from '@/types';
 import { getStore, type DataStore, type Op, type QueryOpts } from '@/data/store';
+import { demoLegalInfo } from '@/data/demoModels';
 import { useAuth } from './auth';
 import { uid } from '@/lib/utils';
 import { PROFILE_MODULES, atLeast } from '@/registry';
@@ -202,7 +203,7 @@ export function OrgProvider({ children, fallback }: { children: ReactNode; fallb
         modules: input.modules ?? PROFILE_MODULES[input.profile],
         locale: input.locale,
         currency: 'EUR',
-        legal: { ...emptyLegal(), legalName: input.name },
+        legal: input.withDemoData ? demoLegalInfo(input.name) : { ...emptyLegal(), legalName: input.name },
         invoicePrefix: 'FAC',
         quotePrefix: 'DEV',
         defaultVatRate: 20,

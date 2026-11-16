@@ -54,6 +54,7 @@ export function buildHospitalityDemand(w: DemoWorld, o: HospitalityOptions): Tar
   for (const wine of w.wines) {
     const s = w.seedById.get(wine.id)!;
     targets.push({ wineId: wine.id, siteId: w.mainSiteId, target: s.qty });
+    if (s.isArchived || s.isPreSale || s.key.endsWith('-dup')) continue;
     for (let k = 0; k < WINDOWS; k++) {
       const qty = sample(w, velocity(s) * seasonFactor(s.color, monthOf(w, k)) * o.mainFactor);
       if (!qty) continue;

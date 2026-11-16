@@ -26,9 +26,9 @@ const DEMO_POS_CSV = [
   'Article;Quantité;Code PLU',
   'Château de La Commaraine Pommard 1er Cru Clos de la Commaraine 2019;2;PLU-101',
   'Domaine Leflaive Puligny-Montrachet 2020;2;PLU-204',
-  'Domaine François Raveneau Chablis 1er Cru Montée de Tonnerre 2020;1;PLU-108',
-  'Domaine des Comtes Lafon Meursault 1er Cru Charmes 2020;1;PLU-215',
-  'Ruinart Blanc de Blancs;3;PLU-301',
+  'Domaine William Fèvre Chablis 1er Cru Montmains 2021;1;PLU-108',
+  'Domaine Jean-Marc Roulot Meursault Les Luchets 2019;1;PLU-215',
+  'Champagne Ruinart Blanc de Blancs;3;PLU-301',
 ].join('\n');
 
 const DEMO_POS_PRICES: Record<string, number> = {

@@ -1,4 +1,4 @@
-import type { Partner, TechnicalSheet, WineColor } from '@/types';
+import type { Partner, TechnicalSheet, WineAllergen, WineColor } from '@/types';
 
 /** Référence de démonstration. Prix d'achat HT indicatifs (prix 75 cl ; ×2,1 pour un magnum). */
 export interface WineSeed {
@@ -17,6 +17,13 @@ export interface WineSeed {
   apogee?: [number, number];
   format?: number;
   glass?: number; // prix TTC du verre (restauration)
+  ean?: string;
+  posCode?: string;
+  abv?: number;
+  allergens?: WineAllergen[];
+  isPreSale?: boolean;
+  isArchived?: boolean;
+  image?: { bg: string; accent: string; style: 'palace' | 'classic' | 'modern' };
   sheet?: Omit<TechnicalSheet, 'generatedByAI'>;
 }
 
@@ -26,6 +33,7 @@ export const WINE_SEEDS: WineSeed[] = [
   {
     key: 'leflaive-puligny', producer: 'Domaine Leflaive', name: 'Puligny-Montrachet', vintage: '2020', color: 'blanc',
     region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Puligny-Montrachet', country: FR, grapes: 'Chardonnay', buy: 78, qty: 18, apogee: [2024, 2034],
+    ean: '3760123450028', posCode: 'PLU-204', abv: 13, image: { bg: '#f7f3ea', accent: '#8c6a32', style: 'classic' },
     sheet: {
       aop: 'Puligny-Montrachet', sol: 'Marnes et calcaires de la Côte de Beaune', cepage: '100 % Chardonnay',
       vinification: 'Pressurage doux, fermentation en fûts de chêne', elevage: 'Sous bois puis en cuve, sur lies fines',
@@ -33,13 +41,14 @@ export const WINE_SEEDS: WineSeed[] = [
       temperatureService: '11–13 °C', garde: "Jusqu'en 2034", accords: 'Bar de ligne au beurre blanc, volaille à la crème',
     },
   },
-  { key: 'roulot-luchets', producer: 'Domaine Jean-Marc Roulot', name: 'Meursault Les Luchets', vintage: '2019', color: 'blanc', region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Meursault', country: FR, grapes: 'Chardonnay', buy: 92, qty: 9, apogee: [2023, 2033] },
-  { key: 'dujac-gevrey', producer: 'Domaine Dujac', name: 'Gevrey-Chambertin', vintage: '2018', color: 'rouge', region: 'Bourgogne', subRegion: 'Côte de Nuits', appellation: 'Gevrey-Chambertin', country: FR, grapes: 'Pinot noir', buy: 85, qty: 14, apogee: [2024, 2036] },
-  { key: 'rousseau-chambertin', producer: 'Domaine Armand Rousseau', name: 'Chambertin Grand Cru', vintage: '2017', color: 'rouge', region: 'Bourgogne', subRegion: 'Côte de Nuits', appellation: 'Chambertin', country: FR, grapes: 'Pinot noir', buy: 420, qty: 0, apogee: [2027, 2045] },
-  { key: 'drc-tache', producer: 'Domaine de la Romanée-Conti', name: 'La Tâche', vintage: '2016', color: 'rouge', region: 'Bourgogne', subRegion: 'Côte de Nuits', appellation: 'La Tâche', country: FR, grapes: 'Pinot noir', buy: 1900, qty: 1, apogee: [2030, 2060] },
+  { key: 'roulot-luchets', producer: 'Domaine Jean-Marc Roulot', name: 'Meursault Les Luchets', vintage: '2019', color: 'blanc', region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Meursault', country: FR, grapes: 'Chardonnay', buy: 92, qty: 9, apogee: [2023, 2033], ean: '3760123450042', posCode: 'PLU-215', abv: 13 },
+  { key: 'dujac-gevrey', producer: 'Domaine Dujac', name: 'Gevrey-Chambertin', vintage: '2018', color: 'rouge', region: 'Bourgogne', subRegion: 'Côte de Nuits', appellation: 'Gevrey-Chambertin', country: FR, grapes: 'Pinot noir', buy: 85, qty: 14, apogee: [2024, 2036], abv: 13.5 },
+  { key: 'rousseau-chambertin', producer: 'Domaine Armand Rousseau', name: 'Chambertin Grand Cru', vintage: '2017', color: 'rouge', region: 'Bourgogne', subRegion: 'Côte de Nuits', appellation: 'Chambertin', country: FR, grapes: 'Pinot noir', buy: 420, qty: 0, apogee: [2027, 2045], abv: 13.5 },
+  { key: 'drc-tache', producer: 'Domaine de la Romanée-Conti', name: 'La Tâche', vintage: '2016', color: 'rouge', region: 'Bourgogne', subRegion: 'Côte de Nuits', appellation: 'La Tâche', country: FR, grapes: 'Pinot noir', buy: 1900, qty: 1, apogee: [2030, 2060], abv: 13.5, image: { bg: '#faf6ef', accent: '#6b1f2e', style: 'palace' } },
   {
     key: 'lascases', producer: 'Château Léoville-Las Cases', name: 'Saint-Julien 2ème Cru Classé', vintage: '2015', color: 'rouge',
     region: 'Bordeaux', subRegion: 'Médoc', appellation: 'Saint-Julien', country: FR, grapes: 'Cabernet sauvignon, Merlot, Cabernet franc', buy: 135, qty: 12, apogee: [2023, 2045],
+    abv: 13.5, allergens: ['oeuf'], image: { bg: '#f4efe6', accent: '#581525', style: 'classic' },
     sheet: {
       aop: 'Saint-Julien', sol: 'Graves garonnaises sur sous-sol argileux', cepage: 'Cabernet sauvignon, Merlot, Cabernet franc',
       vinification: 'En cuves, extraction mesurée', elevage: 'Fûts de chêne français',
@@ -47,10 +56,11 @@ export const WINE_SEEDS: WineSeed[] = [
       temperatureService: '17–18 °C', garde: "Jusqu'en 2045", accords: 'Carré d’agneau, entrecôte bordelaise',
     },
   },
-  { key: 'pichon-comtesse', producer: 'Château Pichon Longueville Comtesse de Lalande', name: 'Pauillac', vintage: '2016', color: 'rouge', region: 'Bordeaux', subRegion: 'Médoc', appellation: 'Pauillac', country: FR, grapes: 'Cabernet sauvignon, Merlot', buy: 110, qty: 6, apogee: [2026, 2048] },
+  { key: 'pichon-comtesse', producer: 'Château Pichon Longueville Comtesse de Lalande', name: 'Pauillac', vintage: '2016', color: 'rouge', region: 'Bordeaux', subRegion: 'Médoc', appellation: 'Pauillac', country: FR, grapes: 'Cabernet sauvignon, Merlot', buy: 110, qty: 6, apogee: [2026, 2048], abv: 13.5, allergens: ['oeuf'] },
   {
     key: 'yquem', producer: "Château d'Yquem", name: 'Sauternes', vintage: '2014', color: 'doux',
     region: 'Bordeaux', subRegion: 'Sauternais', appellation: 'Sauternes', country: FR, grapes: 'Sémillon, Sauvignon blanc', buy: 210, qty: 4, apogee: [2025, 2070],
+    abv: 13.5, image: { bg: '#fbf6e8', accent: '#b8924a', style: 'palace' },
     sheet: {
       aop: 'Sauternes', sol: 'Graves et argiles', cepage: 'Sémillon, Sauvignon blanc',
       vinification: 'Vendanges par tries successives de raisins botrytisés', elevage: 'Long élevage en barriques',
@@ -108,6 +118,7 @@ export const WINE_SEEDS: WineSeed[] = [
   {
     key: 'ruinart-bdb', producer: 'Champagne Ruinart', name: 'Blanc de Blancs', vintage: 'NM', color: 'bulles',
     region: 'Champagne', subRegion: 'Montagne de Reims', appellation: 'Champagne', country: FR, grapes: 'Chardonnay', buy: 48, qty: 40, glass: 22,
+    ean: '3760123450059', posCode: 'PLU-301', abv: 12.5, image: { bg: '#f8f5ed', accent: '#b8924a', style: 'modern' },
     sheet: {
       aop: 'Champagne', sol: 'Craie', cepage: '100 % Chardonnay',
       vinification: 'Assemblage de plusieurs années avec vins de réserve', elevage: 'Vieillissement sur lattes en caves crayeuses',
@@ -169,6 +180,7 @@ export const WINE_SEEDS: WineSeed[] = [
   {
     key: 'fevre-montmains', producer: 'Domaine William Fèvre', name: 'Chablis 1er Cru Montmains', vintage: '2021', color: 'blanc',
     region: 'Bourgogne', subRegion: 'Chablis', appellation: 'Chablis Premier Cru', country: FR, grapes: 'Chardonnay', buy: 34, qty: 24, apogee: [2024, 2030], glass: 15,
+    ean: '3760123450035', posCode: 'PLU-108', abv: 13,
     sheet: {
       aop: 'Chablis Premier Cru', sol: 'Marnes kimméridgiennes', cepage: 'Chardonnay',
       vinification: 'Fermentation en cuve et en fût', elevage: 'Sur lies',
@@ -176,13 +188,14 @@ export const WINE_SEEDS: WineSeed[] = [
       temperatureService: '10–12 °C', garde: "Jusqu'en 2030", accords: 'Huîtres, escargots, poissons grillés',
     },
   },
-  { key: 'joguet-chinon', producer: 'Domaine Charles Joguet', name: 'Chinon Les Petites Roches', vintage: '2021', color: 'rouge', region: 'Loire', subRegion: 'Touraine', appellation: 'Chinon', country: FR, grapes: 'Cabernet franc', buy: 22, qty: 30, apogee: [2023, 2029] },
+  { key: 'joguet-chinon', producer: 'Domaine Charles Joguet', name: 'Chinon Les Petites Roches', vintage: '2021', color: 'rouge', region: 'Loire', subRegion: 'Touraine', appellation: 'Chinon', country: FR, grapes: 'Cabernet franc', buy: 22, qty: 30, apogee: [2023, 2029], abv: 13 },
   { key: 'vega-valbuena', producer: 'Vega Sicilia', name: 'Valbuena 5°', vintage: '2018', color: 'rouge', region: 'Castille-et-León', subRegion: 'Ribera del Duero', appellation: 'Ribera del Duero', country: 'Espagne', grapes: 'Tinto Fino, Merlot', buy: 110, qty: 6, apogee: [2024, 2038] },
   { key: 'radikon-oslavje', producer: 'Radikon', name: 'Oslavje', vintage: '2018', color: 'orange', region: 'Frioul', subRegion: 'Collio', appellation: 'IGT Venezia Giulia', country: 'Italie', grapes: 'Chardonnay, Sauvignon blanc, Pinot grigio', buy: 48, qty: 10, apogee: [2023, 2035] },
   // ——— verticales prestige Bourgogne & références d'apogée (Hôtel 5★ & Gastronomie)
   {
     key: 'commaraine-clos-2017', producer: 'Château de La Commaraine', name: 'Pommard 1er Cru Clos de la Commaraine', vintage: '2017', color: 'rouge',
     region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Pommard Premier Cru', country: FR, grapes: 'Pinot noir', buy: 68, qty: 8, apogee: [2021, 2026],
+    abv: 13.5, image: { bg: '#faf6ef', accent: '#6b1f2e', style: 'palace' },
     sheet: {
       aop: 'Pommard Premier Cru (Monopole)', sol: 'Argilo-calcaire ferrugineux en pied de coteau', cepage: '100 % Pinot noir',
       vinification: 'Vendange entière partielle, cuvaison douce en cuves bois', elevage: '16 mois en fûts de chêne français (30 % neufs)',
@@ -190,15 +203,22 @@ export const WINE_SEEDS: WineSeed[] = [
       temperatureService: '16–17 °C', garde: "À son apogée jusqu'en 2026", accords: 'Pigeon rôti au jus corsé, filet de bœuf charolais, Époisses affiné',
     },
   },
-  { key: 'commaraine-clos-2018', producer: 'Château de La Commaraine', name: 'Pommard 1er Cru Clos de la Commaraine', vintage: '2018', color: 'rouge', region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Pommard Premier Cru', country: FR, grapes: 'Pinot noir', buy: 72, qty: 12, apogee: [2023, 2032], glass: 26 },
-  { key: 'commaraine-clos-2019', producer: 'Château de La Commaraine', name: 'Pommard 1er Cru Clos de la Commaraine', vintage: '2019', color: 'rouge', region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Pommard Premier Cru', country: FR, grapes: 'Pinot noir', buy: 78, qty: 18, apogee: [2025, 2036] },
+  { key: 'commaraine-clos-2018', producer: 'Château de La Commaraine', name: 'Pommard 1er Cru Clos de la Commaraine', vintage: '2018', color: 'rouge', region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Pommard Premier Cru', country: FR, grapes: 'Pinot noir', buy: 72, qty: 12, apogee: [2023, 2032], glass: 26, abv: 13.5 },
+  { key: 'commaraine-clos-2019', producer: 'Château de La Commaraine', name: 'Pommard 1er Cru Clos de la Commaraine', vintage: '2019', color: 'rouge', region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Pommard Premier Cru', country: FR, grapes: 'Pinot noir', buy: 78, qty: 18, apogee: [2025, 2036], ean: '3760123450011', posCode: 'PLU-101', abv: 13.5 },
   { key: 'commaraine-clos-2021', producer: 'Château de La Commaraine', name: 'Pommard 1er Cru Clos de la Commaraine', vintage: '2021', color: 'rouge', region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Pommard Premier Cru', country: FR, grapes: 'Pinot noir', buy: 82, qty: 24, apogee: [2027, 2038] },
-  { key: 'leflaive-puligny-2018', producer: 'Domaine Leflaive', name: 'Puligny-Montrachet', vintage: '2018', color: 'blanc', region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Puligny-Montrachet', country: FR, grapes: 'Chardonnay', buy: 74, qty: 7, apogee: [2022, 2026] },
+  { key: 'leflaive-puligny-2018', producer: 'Domaine Leflaive', name: 'Puligny-Montrachet', vintage: '2018', color: 'blanc', region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Puligny-Montrachet', country: FR, grapes: 'Chardonnay', buy: 74, qty: 7, apogee: [2022, 2026], abv: 13, allergens: ['lait'] },
   { key: 'leflaive-puligny-2019', producer: 'Domaine Leflaive', name: 'Puligny-Montrachet', vintage: '2019', color: 'blanc', region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Puligny-Montrachet', country: FR, grapes: 'Chardonnay', buy: 76, qty: 11, apogee: [2023, 2032] },
   { key: 'roulot-luchets-2017', producer: 'Domaine Jean-Marc Roulot', name: 'Meursault Les Luchets', vintage: '2017', color: 'blanc', region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Meursault', country: FR, grapes: 'Chardonnay', buy: 88, qty: 6, apogee: [2020, 2025] },
   { key: 'roulot-luchets-2021', producer: 'Domaine Jean-Marc Roulot', name: 'Meursault Les Luchets', vintage: '2021', color: 'blanc', region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Meursault', country: FR, grapes: 'Chardonnay', buy: 98, qty: 12, apogee: [2027, 2036] },
   { key: 'vogue-chambolle-2014', producer: 'Domaine Comte Georges de Vogüé', name: 'Chambolle-Musigny 1er Cru', vintage: '2014', color: 'rouge', region: 'Bourgogne', subRegion: 'Côte de Nuits', appellation: 'Chambolle-Musigny Premier Cru', country: FR, grapes: 'Pinot noir', buy: 165, qty: 5, apogee: [2020, 2025] },
   { key: 'coche-bourgogne-2016', producer: 'Domaine Coche-Dury', name: 'Bourgogne Blanc', vintage: '2016', color: 'blanc', region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Bourgogne', country: FR, grapes: 'Chardonnay', buy: 125, qty: 6, apogee: [2020, 2026] },
+  // ——— Spiritueux (DRM Douanes colonne Spiritueux + Service digestifs)
+  { key: 'tariquet-armagnac', producer: 'Domaine Tariquet', name: "Bas-Armagnac Hors d'Âge 15 ans", vintage: 'NM', color: 'spiritueux', region: 'Sud-Ouest', subRegion: 'Bas-Armagnac', appellation: 'Bas-Armagnac', country: FR, grapes: 'Baco, Ugni blanc', buy: 44, qty: 6, format: 70, glass: 16, abv: 40 },
+  { key: 'frapin-cognac', producer: 'Maison Frapin', name: 'Cognac Grande Champagne XO VIP', vintage: 'NM', color: 'spiritueux', region: 'Cognac', subRegion: 'Grande Champagne', appellation: 'Cognac Grande Champagne', country: FR, grapes: 'Ugni blanc', buy: 98, qty: 4, format: 70, glass: 24, abv: 40 },
+  // ——— Cas spécifiques de catalogue : doublon volontaire (à fusionner), prévente primeurs, cuvée archivée
+  { key: 'joguet-chinon-dup', producer: 'Domaine Charles Joguet', name: 'Chinon Les Petite Roches', vintage: '2021', color: 'rouge', region: 'Loire', subRegion: 'Touraine', appellation: 'Chinon Les Petites Roches', country: FR, grapes: 'Cabernet franc', buy: 22, qty: 2, apogee: [2023, 2029], abv: 13 },
+  { key: 'palmer-primeur-2024', producer: 'Château Palmer', name: 'Alter Ego (Primeurs)', vintage: '2024', color: 'rouge', region: 'Bordeaux', subRegion: 'Médoc', appellation: 'Margaux', country: FR, grapes: 'Merlot, Cabernet sauvignon', buy: 58, qty: 0, apogee: [2029, 2042], isPreSale: true },
+  { key: 'commaraine-clos-2012-arch', producer: 'Château de La Commaraine', name: 'Pommard 1er Cru Clos de la Commaraine', vintage: '2012', color: 'rouge', region: 'Bourgogne', subRegion: 'Côte de Beaune', appellation: 'Pommard Premier Cru', country: FR, grapes: 'Pinot noir', buy: 64, qty: 0, apogee: [2017, 2024], isArchived: true },
 ];
 
 /** Fournisseurs fictifs et régions qu'ils couvrent (répartition des réassorts). */
@@ -217,7 +237,7 @@ export const SUPPLIERS: SupplierSeed[] = [
   {
     key: 'gcb', name: 'Les Grands Crus de Bordeaux', contactName: 'Service grands comptes', address: '42 quai des Chartrons', postalCode: '33000', city: 'Bordeaux',
     email: 'ventes@gcb.example', phone: '05 00 00 00 02', paymentTermsDays: 45, numberPrefix: 'GCB-',
-    regions: ['Bordeaux', 'Vallée du Rhône', 'Provence', 'Languedoc', 'Piémont', 'Mosel', 'Castille-et-León', 'Frioul'],
+    regions: ['Bordeaux', 'Sud-Ouest', 'Cognac', 'Vallée du Rhône', 'Provence', 'Languedoc', 'Piémont', 'Mosel', 'Castille-et-León', 'Frioul'],
   },
   {
     key: 'champdist', name: 'Champagne Distribution', contactName: 'Accueil professionnels', address: '3 allée des Crayères', postalCode: '51100', city: 'Reims',
@@ -228,14 +248,14 @@ export const SUPPLIERS: SupplierSeed[] = [
 
 export type ClientKey = 'comptoir' | 'lumieres' | 'abbaye' | 'verdier' | 'club' | 'dubois' | 'morel';
 
-export type ClientSeed = Pick<Partner, 'name' | 'city' | 'customerType' | 'email' | 'paymentTermsDays' | 'address' | 'postalCode' | 'contactName' | 'discountPct'> & { key: ClientKey };
+export type ClientSeed = Pick<Partner, 'name' | 'city' | 'customerType' | 'email' | 'paymentTermsDays' | 'address' | 'postalCode' | 'contactName' | 'discountPct' | 'siret' | 'vatNumber'> & { key: ClientKey };
 
 export const CLIENTS: ClientSeed[] = [
-  { key: 'comptoir', name: 'Restaurant Le Comptoir', contactName: 'Chef sommelier', address: '15 rue du Marché', postalCode: '75011', city: 'Paris', customerType: 'pro', email: 'achats@lecomptoir.example', paymentTermsDays: 30, discountPct: 5 },
-  { key: 'lumieres', name: 'Hôtel des Lumières', contactName: 'Direction F&B', address: '2 place des Célestins', postalCode: '69002', city: 'Lyon', customerType: 'pro', email: 'cave@hotel-lumieres.example', paymentTermsDays: 30 },
-  { key: 'abbaye', name: "Cave de l'Abbaye", contactName: 'Gérance', address: '27 rue Monge', postalCode: '21000', city: 'Dijon', customerType: 'pro', email: 'contact@cave-abbaye.example', paymentTermsDays: 15, discountPct: 8 },
-  { key: 'verdier', name: 'Maison Verdier Traiteur', contactName: 'Service achats', address: '110 cours de la Marne', postalCode: '33800', city: 'Bordeaux', customerType: 'pro', email: 'achats@verdier-traiteur.example', paymentTermsDays: 45 },
-  { key: 'club', name: 'Cercle Œnophile du Nord', contactName: 'Trésorerie', address: '5 rue des Arts', postalCode: '59000', city: 'Lille', customerType: 'pro', email: 'tresorier@cercle-oenophile.example', paymentTermsDays: 30 },
+  { key: 'comptoir', name: 'Restaurant Le Comptoir', contactName: 'Chef sommelier', address: '15 rue du Marché', postalCode: '75011', city: 'Paris', customerType: 'pro', email: 'achats@lecomptoir.example', paymentTermsDays: 30, discountPct: 5, siret: '40100000500017', vatNumber: 'FR12401000005' },
+  { key: 'lumieres', name: 'Hôtel des Lumières', contactName: 'Direction F&B', address: '2 place des Célestins', postalCode: '69002', city: 'Lyon', customerType: 'pro', email: 'cave@hotel-lumieres.example', paymentTermsDays: 30, siret: '40100001300011', vatNumber: 'FR34401000013' },
+  { key: 'abbaye', name: "Cave de l'Abbaye", contactName: 'Gérance', address: '27 rue Monge', postalCode: '21000', city: 'Dijon', customerType: 'pro', email: 'contact@cave-abbaye.example', paymentTermsDays: 15, discountPct: 8, siret: '40100002100014', vatNumber: 'FR56401000021' },
+  { key: 'verdier', name: 'Maison Verdier Traiteur', contactName: 'Service achats', address: '110 cours de la Marne', postalCode: '33800', city: 'Bordeaux', customerType: 'pro', email: 'achats@verdier-traiteur.example', paymentTermsDays: 45, siret: '40100003900016', vatNumber: 'FR78401000039' },
+  { key: 'club', name: 'Cercle Œnophile du Nord', contactName: 'Trésorerie', address: '5 rue des Arts', postalCode: '59000', city: 'Lille', customerType: 'pro', email: 'tresorier@cercle-oenophile.example', paymentTermsDays: 30, siret: '40100004700019', vatNumber: 'FR90401000047' },
   { key: 'dubois', name: 'Mme Claire Dubois', address: '9 allée des Tilleuls', postalCode: '44000', city: 'Nantes', customerType: 'particulier', email: 'claire.dubois@example.com', paymentTermsDays: 0 },
   { key: 'morel', name: 'M. Antoine Morel', address: '21 chemin du Lac', postalCode: '74000', city: 'Annecy', customerType: 'particulier', email: 'antoine.morel@example.com', paymentTermsDays: 0 },
 ];
