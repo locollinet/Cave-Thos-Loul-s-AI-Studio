@@ -6,6 +6,19 @@ import type { AssistantAnswer, AssistantServerResponse, AssistantToolName, Resul
 const MAX_TOOL_ROUNDS = 4;
 const MAX_HISTORY_TURNS = 16;
 
+function trimHistorySafely(items: Record<string, unknown>[]): Record<string, unknown>[] {
+  if (items.length <= MAX_HISTORY_TURNS) return items;
+  let start = items.length - MAX_HISTORY_TURNS;
+  while (start < items.length) {
+    const item = items[start];
+    const parts = Array.isArray(item?.parts) ? (item.parts as Record<string, unknown>[]) : [];
+    const isPlainUserText = item?.role === 'user' && parts.some((p) => typeof p.text === 'string');
+    if (isPlainUserText) break;
+    start += 1;
+  }
+  return items.slice(start);
+}
+
 async function postAssistant<T>(path: string, body: unknown, orgId: string, questionId: string): Promise<T> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -17,11 +30,27 @@ async function postAssistant<T>(path: string, body: unknown, orgId: string, ques
     if (token) headers.Authorization = `Bearer ${token}`;
   }
   const r = await fetch(path, { method: 'POST', headers, body: JSON.stringify(body) });
-  const j = await r.json().catch(() => ({}));
-  if (!r.ok) {
-    throw new Error((j as { error?: string }).error ?? `Erreur ${r.status}`);
+  const raw = await r.text();
+  let parsed: unknown = null;
+  try {
+    parsed = raw ? JSON.parse(raw) : null;
+  } catch {
+    parsed = null;
   }
-  return j as T;
+
+  if (!r.ok) {
+    const errMsg =
+      parsed && typeof parsed === 'object' && typeof (parsed as { error?: unknown }).error === 'string'
+        ? (parsed as { error: string }).error
+        : `Erreur du serveur IA (${r.status}). Réessayez dans un instant.`;
+    throw new Error(errMsg);
+  }
+
+  if (!parsed || typeof parsed !== 'object') {
+    throw new Error('Réponse inattendue ou délai dépassé côté serveur. Réessayez dans un instant.');
+  }
+
+  return parsed as T;
 }
 
 export interface RunAssistantArgs {
@@ -41,7 +70,7 @@ export interface RunAssistantResult {
 
 /**
  * Exécute une question auprès de l'assistant IA avec boucle d'appels d'outils côté client.
- * Conserve intact le `modelContent` renvoyé par le serveur (dont les signatures de raisonnement Gemini 3).
+ * Conserve intact le `modelContent` renvoyé par le serveur (dont les signatures de raisonnement Gemini 3/4).
  */
 export async function askAssistant({
   ctx,
@@ -61,7 +90,7 @@ export async function askAssistant({
         : 'Tous les lieux'
       : ctx.sites.find((s) => s.id === ctx.activeSiteId)?.name ?? ctx.activeSiteId;
 
-  const trimmedPrev = prevHistory.slice(-MAX_HISTORY_TURNS);
+  const trimmedPrev = trimHistorySafely(prevHistory);
   const history: Record<string, unknown>[] = [
     ...trimmedPrev,
     { role: 'user', parts: [{ text: question.trim().slice(0, 1000) }] },
@@ -97,7 +126,7 @@ export async function askAssistant({
 
     lockedModel = res.model;
 
-    if (res.kind === 'answer') {
+    if (res.kind === 'answer' && res.answer && typeof res.answer.text === 'string') {
       history.push({ role: 'model', parts: [{ text: res.answer.text }] });
       return {
         questionId,
@@ -106,8 +135,16 @@ export async function askAssistant({
           usedTools,
         },
         cards,
-        history: history.slice(-MAX_HISTORY_TURNS),
+        history: trimHistorySafely(history),
       };
+    }
+
+    if (res.kind !== 'tool_calls' || !Array.isArray(res.calls) || !res.modelContent) {
+      throw new Error(
+        locale === 'en'
+          ? 'Unexpected assistant response format. Please try again.'
+          : 'Réponse inattendue de l’assistant. Veuillez réessayer.',
+      );
     }
 
     // Conservation intacte du contenu du modèle (avec ses signatures éventuelles)
@@ -166,7 +203,7 @@ export async function askAssistant({
       usedTools,
     },
     cards,
-    history: history.slice(-MAX_HISTORY_TURNS),
+    history: trimHistorySafely(history),
   };
 }
 

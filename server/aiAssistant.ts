@@ -17,7 +17,7 @@ assistantRouter.use(requireUser);
 const MAX_HISTORY_BYTES = 200_000;
 const MAX_HISTORY_ITEMS = 24;
 const MAX_TOOL_ROUNDS = 4;
-const CALL_TIMEOUT_MS = 20_000;
+const CALL_TIMEOUT_MS = 14_000;
 
 interface ScopeInfo {
   role: string;
@@ -252,13 +252,14 @@ assistantRouter.post('/', async (req: Request, res: Response) => {
           }
         }
 
-        const textOut =
-          response.text ??
-          parts
-            .map((p) => (typeof p.text === 'string' && !(p as { thought?: boolean }).thought ? p.text : ''))
-            .join('\n');
+        const textFromParts = parts
+          .filter((p) => typeof p.text === 'string' && !(p as { thought?: boolean }).thought)
+          .map((p) => p.text!)
+          .join('\n')
+          .trim();
+        const textOut = textFromParts || response.text || '';
 
-        const answer = parseFinalAnswerJson(textOut || '', input.locale, input.usedTools);
+        const answer = parseFinalAnswerJson(textOut, input.locale, input.usedTools);
         const usage = response.usageMetadata;
         const costUsd = estimateCostUsd(usage?.promptTokenCount, usage?.candidatesTokenCount);
         const durationMs = Date.now() - startCall;
@@ -275,7 +276,8 @@ assistantRouter.post('/', async (req: Request, res: Response) => {
       } catch (e) {
         const s = (e as { status?: unknown; code?: unknown })?.status ?? (e as { code?: unknown })?.code;
         if (typeof s === 'number') lastStatus = s;
-        console.warn(`[ai:assistant] échec modèle=${model} tour=${input.toolRound} code=${lastStatus || (e as Error)?.name}`);
+        const msg = e instanceof Error ? e.message.slice(0, 140) : '';
+        console.warn(`[ai:assistant] échec modèle=${model} tour=${input.toolRound} code=${lastStatus || (e as Error)?.name} msg=${msg}`);
       } finally {
         clearTimeout(timer);
       }

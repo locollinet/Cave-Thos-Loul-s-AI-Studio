@@ -15,9 +15,13 @@ export const modelList = (): string[] =>
   [process.env.GEMINI_MODEL, 'gemini-3.1-flash-lite', 'gemini-3.8-flash', 'gemini-flash-latest'].filter((m): m is string => !!m && m.trim() !== '');
 
 export const assistantModelList = (): string[] =>
-  [process.env.GEMINI_ASSISTANT_MODEL, process.env.GEMINI_MODEL, 'gemini-3.8-flash', 'gemini-3.1-flash-lite'].filter(
-    (m): m is string => !!m && m.trim() !== '',
-  );
+  [
+    ...new Set(
+      [process.env.GEMINI_ASSISTANT_MODEL, 'gemini-4-hydrogen', 'gemini-3.8-flash', 'gemini-3.5-flash-lite'].filter(
+        (m): m is string => !!m && m.trim() !== '',
+      ),
+    ),
+  ].slice(0, 2);
 
 let customClientFactory: (() => GoogleGenAI) | null = null;
 
@@ -45,7 +49,8 @@ export function getAiClient(): GoogleGenAI {
   return new GoogleGenAI({ apiKey });
 }
 
-export const isGemini3Model = (model: string): boolean => model.startsWith('gemini-3') || model === 'gemini-flash-latest';
+export const isGemini3Model = (model: string): boolean =>
+  model.startsWith('gemini-3') || model.startsWith('gemini-4') || model === 'gemini-flash-latest';
 
 export function isAiConfigured(): boolean {
   const backend = (process.env.AI_BACKEND ?? 'gemini').toLowerCase();

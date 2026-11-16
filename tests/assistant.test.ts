@@ -19,7 +19,7 @@ import {
 import { getContextualSuggestions } from '@/modules/assistant/helpContent';
 import { assistantRouter } from '../server/aiAssistant';
 import { QUOTAS, resetQuotas, setFirebaseConfig } from '../server/auth';
-import { setAiClientFactory } from '../server/gemini';
+import { assistantModelList, isGemini3Model, setAiClientFactory } from '../server/gemini';
 import goldenQuestions from './assistant/golden.json';
 
 const makeOrg = (modules: ModuleId[] = ['stock', 'carte', 'achats', 'negoce', 'compta', 'pilotage']): Org => ({
@@ -543,5 +543,13 @@ describe('Route serveur /api/ai/assistant (boucle d’outils, signatures Gemini 
     });
     expect(fb.status).toBe(200);
     expect(QUOTAS.assistantDemoIp).toBe(15);
+  });
+
+  it('reconnaît Gemini 4 Hydrogen comme modèle à thinking réglable et déduplique la liste', () => {
+    expect(isGemini3Model('gemini-4-hydrogen')).toBe(true);
+    expect(isGemini3Model('gemini-3.8-flash')).toBe(true);
+    const list = assistantModelList();
+    expect(list.length).toBeLessThanOrEqual(2);
+    expect(new Set(list).size).toBe(list.length);
   });
 });
