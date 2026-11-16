@@ -90,7 +90,6 @@ export function buildFullDemoOps(orgId: string, mainSiteId: string, profile: Org
           totalTTC: totals.ttc,
           status: 'draft',
           siteId: ctx.mainSiteId,
-          notes: 'Livraison attendue en fin de semaine — à contrôler avant mise en stock.',
           createdAt: ctx.now - 3_600_000,
           createdBy: ctx.actor.userName,
         };

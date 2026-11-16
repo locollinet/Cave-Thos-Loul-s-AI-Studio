@@ -352,13 +352,13 @@ export default function WinesTab({ view }: { view: PilotageView }) {
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <Segmented<3 | 6 | 12>
-                  value={dormantMonths}
-                  onChange={setDormantMonths}
+                <Segmented<'3' | '6' | '12'>
+                  value={String(dormantMonths) as '3' | '6' | '12'}
+                  onChange={(v) => setDormantMonths(Number(v) as 3 | 6 | 12)}
                   options={[
-                    { value: 3, label: '> 3 mois' },
-                    { value: 6, label: '> 6 mois' },
-                    { value: 12, label: '> 12 mois' },
+                    { value: '3', label: '> 3 mois' },
+                    { value: '6', label: '> 6 mois' },
+                    { value: '12', label: '> 12 mois' },
                   ]}
                 />
                 <Segmented<DormantFilter>
