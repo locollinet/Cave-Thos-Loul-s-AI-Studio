@@ -6,6 +6,7 @@ import {
   ClipboardCheck,
   FileText,
   GlassWater,
+  Layers,
   LayoutDashboard,
   Settings,
   ShieldCheck,
@@ -18,10 +19,14 @@ import {
 import type { ModuleId, OrgProfile, Role } from '@/types';
 import { ROLE_RANK } from '@/types';
 
+export type NavGroup = 'cockpit' | 'service' | 'cellar' | 'commerce' | 'admin';
+
 export interface NavItem {
   id: string;
   path: string;
   labelKey: string;
+  hintKey?: string;
+  group?: NavGroup;
   icon: LucideIcon;
   module?: ModuleId; // si défini, requiert que le module soit activé
   roles?: Role[]; // si défini, rôles autorisés (sinon tous)
@@ -30,19 +35,24 @@ export interface NavItem {
 }
 
 export const NAV: NavItem[] = [
-  { id: 'dashboard', path: '/', labelKey: 'nav.dashboard', icon: LayoutDashboard },
-  { id: 'wines', path: '/vins', labelKey: 'nav.wines', icon: WineIcon, module: 'stock', keywords: 'référentiel catalogue produits cuvées' },
-  { id: 'stock', path: '/stock', labelKey: 'nav.stock', icon: Boxes, module: 'stock', keywords: 'mouvements entrées sorties transferts casse' },
-  { id: 'inventory', path: '/inventaire', labelKey: 'nav.inventory', icon: ClipboardCheck, module: 'stock', keywords: 'comptage mobile scan' },
-  { id: 'carte', path: '/carte', labelKey: 'nav.carte', icon: BookOpen, module: 'carte', roles: ['owner', 'manager', 'sommelier'], keywords: 'carte des vins menu qr sommelier' },
-  { id: 'service', path: '/service', labelKey: 'nav.service', icon: GlassWater, module: 'carte', keywords: 'service salle verre au verre bouteilles ouvertes tablette' },
-  { id: 'achats', path: '/achats', labelKey: 'nav.achats', icon: Truck, module: 'achats', roles: ['owner', 'manager', 'sommelier', 'accountant'], keywords: 'factures fournisseurs réception import ia' },
-  { id: 'negoce', path: '/negoce', labelKey: 'nav.negoce', icon: ShoppingCart, module: 'negoce', roles: ['owner', 'manager', 'accountant'], keywords: 'devis factures clients dépôt-vente' },
-  { id: 'contacts', path: '/contacts', labelKey: 'nav.contacts', icon: Users, roles: ['owner', 'manager', 'sommelier', 'accountant'], keywords: 'clients fournisseurs partenaires' },
-  { id: 'compta', path: '/compta', labelKey: 'nav.compta', icon: Calculator, module: 'compta', roles: ['owner', 'manager', 'accountant'], keywords: 'tva drm douane charges immobilisations fec' },
-  { id: 'pilotage', path: '/pilotage', labelKey: 'nav.pilotage', icon: BarChart3, module: 'pilotage', roles: ['owner', 'manager', 'sommelier', 'accountant'], keywords: 'marges analyse stratégie millésimes rotation' },
-  { id: 'settings', path: '/reglages', labelKey: 'nav.settings', icon: Settings, roles: ['owner', 'manager'], keywords: 'organisation sites équipe paramètres' },
-  { id: 'platform', path: '/plateforme', labelKey: 'nav.platform', icon: ShieldCheck, platformOnly: true, keywords: 'administration démos prospects console' },
+  { id: 'dashboard', path: '/', labelKey: 'nav.dashboard', hintKey: 'nav.hint.dashboard', group: 'cockpit', icon: LayoutDashboard, keywords: 'accueil cockpit direction résumé' },
+
+  { id: 'service', path: '/service', labelKey: 'nav.service', hintKey: 'nav.hint.service', group: 'service', icon: GlassWater, module: 'carte', keywords: 'service salle verre au verre bouteilles ouvertes tablette coravin ticket z pos' },
+  { id: 'carte', path: '/carte', labelKey: 'nav.carte', hintKey: 'nav.hint.carte', group: 'service', icon: BookOpen, module: 'carte', roles: ['owner', 'manager', 'sommelier'], keywords: 'carte des vins menu qr sommelier ia client' },
+
+  { id: 'wines', path: '/vins', labelKey: 'nav.wines', hintKey: 'nav.hint.wines', group: 'cellar', icon: WineIcon, module: 'stock', keywords: 'référentiel catalogue produits cuvées fiches techniques allocations' },
+  { id: 'cellarPlan', path: '/stock?tab=cellar', labelKey: 'nav.cellarPlan', hintKey: 'nav.hint.cellarPlan', group: 'cellar', icon: Layers, module: 'stock', keywords: 'plan de cave casiers alvéoles étagères quinconce rangement goulots' },
+  { id: 'stock', path: '/stock', labelKey: 'nav.stock', hintKey: 'nav.hint.stock', group: 'cellar', icon: Boxes, module: 'stock', keywords: 'mouvements entrées sorties transferts casse journal ticket z' },
+  { id: 'inventory', path: '/inventaire', labelKey: 'nav.inventory', hintKey: 'nav.hint.inventory', group: 'cellar', icon: ClipboardCheck, module: 'stock', keywords: 'comptage mobile scan écarts' },
+
+  { id: 'achats', path: '/achats', labelKey: 'nav.achats', hintKey: 'nav.hint.achats', group: 'commerce', icon: Truck, module: 'achats', roles: ['owner', 'manager', 'sommelier', 'accountant'], keywords: 'factures fournisseurs réception import ia pdf ocr' },
+  { id: 'negoce', path: '/negoce', labelKey: 'nav.negoce', hintKey: 'nav.hint.negoce', group: 'commerce', icon: ShoppingCart, module: 'negoce', roles: ['owner', 'manager', 'accountant'], keywords: 'devis factures clients dépôt-vente offres' },
+  { id: 'contacts', path: '/contacts', labelKey: 'nav.contacts', hintKey: 'nav.hint.contacts', group: 'commerce', icon: Users, roles: ['owner', 'manager', 'sommelier', 'accountant'], keywords: 'clients fournisseurs domaines partenaires' },
+
+  { id: 'pilotage', path: '/pilotage', labelKey: 'nav.pilotage', hintKey: 'nav.hint.pilotage', group: 'admin', icon: BarChart3, module: 'pilotage', roles: ['owner', 'manager', 'sommelier', 'accountant'], keywords: 'marges analyse stratégie millésimes verticales rotation abc multi-sites' },
+  { id: 'compta', path: '/compta', labelKey: 'nav.compta', hintKey: 'nav.hint.compta', group: 'admin', icon: Calculator, module: 'compta', roles: ['owner', 'manager', 'accountant'], keywords: 'tva drm douane charges immobilisations fec' },
+  { id: 'settings', path: '/reglages', labelKey: 'nav.settings', hintKey: 'nav.hint.settings', group: 'admin', icon: Settings, roles: ['owner', 'manager'], keywords: 'organisation sites équipe paramètres charte' },
+  { id: 'platform', path: '/plateforme', labelKey: 'nav.platform', group: 'admin', icon: ShieldCheck, platformOnly: true, keywords: 'administration démos prospects console' },
 ];
 
 export const MODULE_LIST: { id: ModuleId; labelKey: string; descKey: string; icon: LucideIcon }[] = [

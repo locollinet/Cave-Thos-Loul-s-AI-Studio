@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   ArrowLeftRight,
   ArrowUpFromLine,
@@ -180,10 +181,18 @@ export function CellarPlan({
   const [depthFilter, setDepthFilter] = useState<'both' | 'front' | 'back'>('both');
 
   // Filtres visuels sur le plan
+  const [urlParams] = useSearchParams();
   const [search, setSearch] = useState('');
   const [colorFilter, setColorFilter] = useState<WineColor | 'all'>('all');
-  const [onlyApogee, setOnlyApogee] = useState(false);
+  const [onlyApogee, setOnlyApogee] = useState(() => urlParams.get('apogee') === '1');
   const [onlyFreeSlots, setOnlyFreeSlots] = useState(false);
+
+  useEffect(() => {
+    if (urlParams.get('apogee') === '1') {
+      setOnlyApogee(true);
+      setOnlyFreeSlots(false);
+    }
+  }, [urlParams]);
 
   // Modales & actions directes
   const [creatingRack, setCreatingRack] = useState(false);

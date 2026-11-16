@@ -89,14 +89,20 @@ async function reportId(text: string): Promise<string> {
   return `pos-${Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('').slice(0, 40)}`;
 }
 
-export function PosReconciliationModal({ onClose }: { onClose: () => void }) {
+export function PosReconciliationModal({ onClose, initialSiteId }: { onClose: () => void; initialSiteId?: string }) {
   const { toast } = useToast();
   const { user, demo } = useAuth();
   const { wines, stock, activeSiteId, sites, commit, orgId, org, store, path } = useOrg();
   const [lines, setLines] = useState<PosLine[]>([]);
   const [source, setSource] = useState<{ id: string; fileName: string; isAiTicket?: boolean } | null>(null);
   const [already, setAlready] = useState<PosImport | null>(null);
-  const [siteId, setSiteId] = useState(activeSiteId !== 'all' ? activeSiteId : sites[0]?.id ?? 'main');
+  const [siteId, setSiteId] = useState(
+    initialSiteId && sites.some((s) => s.id === initialSiteId)
+      ? initialSiteId
+      : activeSiteId !== 'all'
+        ? activeSiteId
+        : sites[0]?.id ?? 'main',
+  );
   const [busy, setBusy] = useState(false);
   const [analyzingAi, setAnalyzingAi] = useState(false);
   const [hoveredLineId, setHoveredLineId] = useState<string | null>(null);

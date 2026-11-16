@@ -32,8 +32,8 @@ const STEPS_BY_PROFILE: Record<OrgProfile, DiscoveryStep[]> = {
     },
     {
       title: '3. Réception de factures par IA',
-      desc: 'Numérisez une facture fournisseur : extraction des millésimes et stocks.',
-      to: '/achats',
+      desc: 'Numérisez une facture fournisseur PDF : extraction OCR, rapprochement et calcul CMP.',
+      to: '/achats/nouveau',
       icon: Truck,
       badge: 'Achats & Chai',
     },

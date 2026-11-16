@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { ArrowDownToLine, ArrowRightLeft, ArrowUpFromLine, Boxes, Download, ReceiptText, SlidersHorizontal } from 'lucide-react';
+import { Boxes, Download, Plus, ReceiptText } from 'lucide-react';
 import type { Movement, MovementType, Site, StockLevel, Wine } from '@/types';
 import { useCollection, useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
@@ -23,11 +23,11 @@ const isMove = (v: string | null): v is MovementType => v === 'in' || v === 'out
 
 export default function StockPage() {
   const { t, intl } = useI18n();
-  const { wines, stock, sites, activeSiteId, can, orgId, canSeeCosts } = useOrg();
+  const { wines, stock, sites, activeSiteId, orgId, canSeeCosts } = useOrg();
   const [params, setParams] = useSearchParams();
   const urlTab = params.get('tab');
   const [tab, setTab] = useState<'levels' | 'cellar' | 'journal'>(() => (urlTab === 'cellar' || urlTab === 'journal' ? urlTab : 'levels'));
-  const [posModal, setPosModal] = useState(false);
+  const [posModal, setPosModal] = useState(() => params.get('pos') === '1');
   const [q, setQ] = useState('');
   const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
   const [group, setGroup] = useState<WineGroupBy>('terroir');
@@ -46,6 +46,7 @@ export default function StockPage() {
   useEffect(() => {
     const n = params.get('new');
     if (isMove(n)) setModal(n);
+    if (params.get('pos') === '1') setPosModal(true);
   }, [params]);
 
   const switchTab = (nextTab: 'levels' | 'cellar' | 'journal') => {
@@ -68,6 +69,20 @@ export default function StockPage() {
         (prev) => {
           const p = new URLSearchParams(prev);
           p.delete('new');
+          return p;
+        },
+        { replace: true },
+      );
+    }
+  };
+
+  const closePosModal = () => {
+    setPosModal(false);
+    if (params.has('pos')) {
+      setParams(
+        (prev) => {
+          const p = new URLSearchParams(prev);
+          p.delete('pos');
           return p;
         },
         { replace: true },
@@ -206,20 +221,23 @@ export default function StockPage() {
   return (
     <div>
       <PageHeader
-        title={t('nav.stock')}
-        subtitle={t('stock.subtitle')}
+        title={tab === 'cellar' ? t('nav.cellarPlan') : t('nav.stock')}
+        subtitle={
+          tab === 'cellar'
+            ? 'Cave en coupe interactive, goulots étiquetés par millésime, permutation Devant/Derrière et rangement.'
+            : t('stock.subtitle')
+        }
         actions={
           <div className="hidden flex-wrap gap-2 md:flex">
+            <Button size="sm" variant="primary" icon={<Plus className="size-4" />} onClick={() => setModal('in')}>
+              {t('stock.newMovement')}
+            </Button>
             {canSeeCosts && (
               <Button size="sm" variant="secondary" icon={<ReceiptText className="size-4 text-brand" />} onClick={() => setPosModal(true)}>
-                Ventes caisse
+                Ticket Z (POS)
               </Button>
             )}
             <Button size="sm" icon={<Download className="size-4" />} onClick={exportCsv}>{t('common.export')}</Button>
-            <Button size="sm" icon={<ArrowDownToLine className="size-4" />} onClick={() => setModal('in')}>{t('stock.type.in')}</Button>
-            <Button size="sm" icon={<ArrowUpFromLine className="size-4" />} onClick={() => setModal('out')}>{t('stock.type.out')}</Button>
-            {sites.length > 1 && <Button size="sm" icon={<ArrowRightLeft className="size-4" />} onClick={() => setModal('transfer')}>{t('stock.type.transfer')}</Button>}
-            {can('manager') && <Button size="sm" icon={<SlidersHorizontal className="size-4" />} onClick={() => setModal('adjust')}>{t('stock.type.adjust')}</Button>}
           </div>
         }
       />
@@ -314,7 +332,7 @@ export default function StockPage() {
 
       {modal && <MovementModal initialType={modal} onClose={closeModal} />}
       {opened && <WineDrawer wine={opened} onClose={() => setOpenId(null)} />}
-      {posModal && <PosReconciliationModal onClose={() => setPosModal(false)} />}
+      {posModal && <PosReconciliationModal onClose={closePosModal} />}
       {quickBinTarget && (
         <QuickBinModal
           wine={quickBinTarget.wine}

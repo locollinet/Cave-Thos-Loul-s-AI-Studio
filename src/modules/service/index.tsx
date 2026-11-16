@@ -1,11 +1,12 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Euro, GlassWater, LogOut, MapPin, Store } from 'lucide-react';
+import { AlertTriangle, Euro, GlassWater, LogOut, MapPin, ReceiptText, Store } from 'lucide-react';
 import type { Movement, Site } from '@/types';
 import { useOrg, useCollection } from '@/app/org';
 import { useI18n } from '@/i18n';
 import { eur, num } from '@/lib/utils';
 import { Button, EmptyState, PageHeader, Spinner, Stat } from '@/ui';
+import { PosReconciliationModal } from '@/components/pos/PosReconciliationModal';
 import { GlassTab } from './GlassTab';
 import { todayKpis } from './logic';
 import { BigTabs, useNow } from './parts';
@@ -63,11 +64,30 @@ function SitePicker({ sites, onPick }: { sites: Site[]; onPick: (id: string) => 
 
 function ServiceView({ site, multiSite, onChangeSite }: { site: Site; multiSite: boolean; onChangeSite: () => void }) {
   const { t, intl } = useI18n();
-  const { org } = useOrg();
+  const { org, canSeeCosts } = useOrg();
   const now = useNow();
   const [params, setParams] = useSearchParams();
   const tab: Tab = params.get('tab') === 'verre' ? 'verre' : 'service';
   const setTab = (v: Tab) => setParams(v === 'service' ? {} : { tab: v }, { replace: true });
+  const [posOpen, setPosOpen] = useState(() => params.get('pos') === '1');
+
+  useEffect(() => {
+    if (params.get('pos') === '1') setPosOpen(true);
+  }, [params]);
+
+  const closePos = () => {
+    setPosOpen(false);
+    if (params.has('pos')) {
+      setParams(
+        (prev) => {
+          const p = new URLSearchParams(prev);
+          p.delete('pos');
+          return p;
+        },
+        { replace: true },
+      );
+    }
+  };
 
   const { rows: bottles, loading } = useCollection<OpenBottle>('openBottles', { orderBy: ['openedAt', 'desc'], limit: 400 });
   const { rows: movements } = useCollection<Movement>('movements', { orderBy: ['createdAt', 'desc'], limit: 500 });
@@ -80,11 +100,18 @@ function ServiceView({ site, multiSite, onChangeSite }: { site: Site; multiSite:
         title={t('nav.service')}
         subtitle={t('service.subtitle', { site: site.name })}
         actions={
-          multiSite && (
-            <Button size="lg" onClick={onChangeSite} icon={<MapPin className="size-5" aria-hidden />}>
-              {t('service.changeSite')}
-            </Button>
-          )
+          <div className="flex flex-wrap items-center gap-2">
+            {canSeeCosts && (
+              <Button size="lg" variant="secondary" icon={<ReceiptText className="size-5 text-brand" aria-hidden />} onClick={() => setPosOpen(true)}>
+                Ticket Z (POS)
+              </Button>
+            )}
+            {multiSite && (
+              <Button size="lg" onClick={onChangeSite} icon={<MapPin className="size-5" aria-hidden />}>
+                {t('service.changeSite')}
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -120,6 +147,7 @@ function ServiceView({ site, multiSite, onChangeSite }: { site: Site; multiSite:
           <GlassTab siteId={site.id} bottles={bottles} now={now} actions={actions} />
         )}
       </div>
+      {posOpen && <PosReconciliationModal initialSiteId={site.id} onClose={closePos} />}
     </>
   );
 }

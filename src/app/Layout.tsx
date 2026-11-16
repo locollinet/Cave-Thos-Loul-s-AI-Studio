@@ -1,10 +1,33 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { ArrowDownToLine, ArrowRightLeft, ArrowUpFromLine, ClipboardCheck, Command, CornerDownLeft, GlassWater, LogOut, Menu, Moon, Plus, Search, SlidersHorizontal, Sparkles, Sun, Wine as WineIcon } from 'lucide-react';
+import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import {
+  ArrowDownToLine,
+  ArrowRightLeft,
+  ArrowUpFromLine,
+  BarChart3,
+  ClipboardCheck,
+  Command,
+  CornerDownLeft,
+  FileUp,
+  GlassWater,
+  Layers,
+  LogOut,
+  Menu,
+  Moon,
+  Plus,
+  ReceiptText,
+  Search,
+  SlidersHorizontal,
+  Sparkles,
+  Sun,
+  Wine as WineIcon,
+  Zap,
+  type LucideIcon,
+} from 'lucide-react';
 import { useOrg } from './org';
 import { useAuth } from './auth';
 import { useI18n } from '@/i18n';
-import { NAV, isNavVisible } from '@/registry';
+import { NAV, isNavVisible, type NavGroup, type NavItem } from '@/registry';
 import { Modal, cx, useToast } from '@/ui';
 import { BrandMark, Monogram } from '@/pages/Auth';
 import { OfflineBanner } from '@/components/OfflineBanner';
@@ -46,9 +69,19 @@ function useWhiteLabel(brand: BrandTheme | undefined, enabled: boolean, dark: bo
   }, [brand, enabled, dark]);
 }
 
+const NAV_GROUPS: NavGroup[] = ['cockpit', 'service', 'cellar', 'commerce', 'admin'];
+
+function isNavItemActive(item: NavItem, pathname: string, search: string): boolean {
+  const tab = new URLSearchParams(search).get('tab');
+  if (item.id === 'cellarPlan') return pathname === '/stock' && tab === 'cellar';
+  if (item.id === 'stock') return pathname === '/stock' && tab !== 'cellar';
+  if (item.path === '/') return pathname === '/';
+  return pathname === item.path || pathname.startsWith(`${item.path}/`);
+}
+
 export function Layout() {
   const { t, locale, setLocale } = useI18n();
-  const { org, role, sites, activeSiteId, setActiveSiteId, orgs, switchOrg, hasModule, can, overrideRole, setOverrideRole } = useOrg();
+  const { org, role, sites, activeSiteId, setActiveSiteId, orgs, switchOrg, hasModule, can, canSeeCosts, overrideRole, setOverrideRole } = useOrg();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, signOut, sendEmailVerificationNotice } = useAuth();
@@ -81,7 +114,7 @@ export function Layout() {
   );
   // Barre mobile : les 4 destinations les plus utilisées selon le métier.
   const primary = useMemo(() => {
-    const wanted = org.profile === 'restaurant' || org.profile === 'chaine' ? ['dashboard', 'service', 'wines', 'stock'] : ['dashboard', 'wines', 'stock', 'negoce'];
+    const wanted = org.profile === 'restaurant' || org.profile === 'chaine' ? ['dashboard', 'service', 'cellarPlan', 'wines'] : ['dashboard', 'wines', 'cellarPlan', 'negoce'];
     const picked = wanted.map((id) => items.find((n) => n.id === id)).filter((n): n is (typeof items)[number] => !!n);
     for (const n of items) if (picked.length < 4 && !picked.includes(n)) picked.push(n);
     return picked;
@@ -90,46 +123,85 @@ export function Layout() {
   const [fabOpen, setFabOpen] = useState(false);
   useEffect(() => setFabOpen(false), [loc.pathname, loc.search]);
   const section = loc.pathname.split('/')[1] ?? '';
-  const fab = [
-    { to: '/stock?new=in', icon: ArrowDownToLine, label: t('stock.type.in'), show: hasModule('stock') },
-    { to: '/stock?new=out', icon: ArrowUpFromLine, label: t('stock.type.out'), show: hasModule('stock') },
-    { to: '/stock?new=transfer', icon: ArrowRightLeft, label: t('stock.type.transfer'), show: hasModule('stock') && sites.length > 1 },
-    { to: '/stock?new=adjust', icon: SlidersHorizontal, label: t('stock.type.adjust'), show: hasModule('stock') && can('manager') },
-    { to: '/vins?new=1', icon: Plus, label: t('ux.fab.newWine'), show: hasModule('stock') && can('manager') },
-    { to: '/inventaire', icon: ClipboardCheck, label: t('ux.fab.inventory'), show: hasModule('stock') },
-    { to: '/service', icon: GlassWater, label: t('ux.fab.service'), show: items.some((n) => n.id === 'service') },
-  ].filter((a) => a.show);
+
+  const canAchats = hasModule('achats') && ['owner', 'manager', 'sommelier', 'accountant'].includes(role);
+  const canPilotage = hasModule('pilotage') && ['owner', 'manager', 'sommelier', 'accountant'].includes(role);
+  const fab: { to: string; icon: LucideIcon; label: string; hint?: string; show: boolean; highlight?: boolean }[] = [
+    { to: '/achats/nouveau', icon: FileUp, label: 'Importer facture PDF (IA)', hint: 'Scan OCR Gemini & calcul CMP', show: canAchats, highlight: true },
+    { to: hasModule('carte') ? '/service?pos=1' : '/stock?pos=1', icon: ReceiptText, label: 'Clôturer Ticket Z (IA)', hint: 'Déstockage fin de service POS', show: hasModule('stock') && canSeeCosts, highlight: true },
+    { to: '/stock?tab=cellar', icon: Layers, label: 'Plan de cave (Goulots)', hint: 'Localiser ou ranger une bouteille', show: hasModule('stock') },
+    { to: '/stock?new=in', icon: ArrowDownToLine, label: t('stock.type.in'), hint: 'Réception manuelle en cave', show: hasModule('stock') },
+    { to: '/stock?new=out', icon: ArrowUpFromLine, label: t('stock.type.out'), hint: 'Sortie cave, service ou casse', show: hasModule('stock') },
+    { to: '/stock?new=transfer', icon: ArrowRightLeft, label: t('stock.type.transfer'), hint: 'Déplacer entre sites', show: hasModule('stock') && sites.length > 1 },
+    { to: '/service', icon: GlassWater, label: t('ux.fab.service'), hint: 'Verres, Coravin & service salle', show: items.some((n) => n.id === 'service') },
+    { to: '/inventaire', icon: ClipboardCheck, label: t('ux.fab.inventory'), hint: 'Comptage rapide de cave', show: hasModule('stock') },
+    { to: '/vins?new=1', icon: Plus, label: t('ux.fab.newWine'), hint: 'Créer une référence vin', show: hasModule('stock') && can('manager') },
+    { to: '/pilotage?tab=vintages', icon: BarChart3, label: 'Analyse Millésimes', hint: 'Verticales & apogées par année', show: canPilotage },
+  ];
+  const visibleFab = fab.filter((a) => a.show);
 
   const linkCls = ({ isActive }: { isActive: boolean }) =>
     cx(
-      'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition',
-      isActive ? 'bg-brand-soft text-brand' : 'text-muted hover:bg-surface-2 hover:text-ink',
+      'flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-[13px] font-medium transition',
+      isActive ? 'bg-brand-soft text-brand font-semibold shadow-xs' : 'text-muted hover:bg-surface-2 hover:text-ink',
     );
 
   return (
     <div className="flex min-h-dvh">
-      {/* Sidebar desktop */}
+      {/* Sidebar desktop structurée par pôles métier */}
       <aside className="no-print sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-border bg-surface p-3 md:flex">
         {whiteLabel ? (
-          <BrandMark className="px-2 pb-4 pt-2" name={org.name} logo={org.brand?.showLogo ? org.legal.logoDataUrl : undefined} caption={t('brand.poweredBy')} />
+          <BrandMark className="px-2 pb-3 pt-1" name={org.name} logo={org.brand?.showLogo ? org.legal.logoDataUrl : undefined} caption={t('brand.poweredBy')} />
         ) : (
-          <BrandMark className="px-2 pb-4 pt-2" />
+          <BrandMark className="px-2 pb-3 pt-1" />
         )}
-        <button
-          onClick={() => setPalette(true)}
-          className="mb-3 flex items-center gap-2 rounded-lg border border-border bg-bg px-3 py-2 text-sm text-muted hover:border-brand/40"
-        >
-          <Search className="size-4" />
-          <span className="flex-1 text-left">{t('nav.cmdk').replace(' (⌘K)', '')}</span>
-          <kbd className="rounded border border-border px-1.5 text-[10px]">⌘K</kbd>
-        </button>
-        <nav className="flex-1 space-y-0.5 overflow-y-auto">
-          {items.map((n) => (
-            <NavLink key={n.id} to={n.path} end={n.path === '/'} className={linkCls}>
-              <n.icon className="size-4.5" />
-              {t(n.labelKey)}
-            </NavLink>
-          ))}
+        <div className="mb-3 space-y-1.5">
+          {visibleFab.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setFabOpen(true)}
+              className="flex w-full items-center gap-2 rounded-xl bg-brand px-3 py-2 text-xs font-semibold text-brand-fg shadow-xs transition hover:opacity-95 cursor-pointer"
+            >
+              <Zap className="size-3.5 shrink-0" />
+              <span className="flex-1 text-left">Action rapide / IA</span>
+              <span className="rounded bg-black/20 px-1.5 py-0.5 text-[10px] font-mono">+</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setPalette(true)}
+            className="flex w-full items-center gap-2 rounded-lg border border-border bg-bg px-3 py-1.5 text-xs text-muted hover:border-brand/40 cursor-pointer"
+          >
+            <Search className="size-3.5" />
+            <span className="flex-1 text-left">{t('nav.cmdk').replace(' (⌘K)', '')}</span>
+            <kbd className="rounded border border-border px-1.5 text-[10px]">⌘K</kbd>
+          </button>
+        </div>
+        <nav className="flex-1 space-y-3 overflow-y-auto pr-0.5">
+          {NAV_GROUPS.map((group) => {
+            const groupItems = items.filter((n) => (n.group ?? 'admin') === group);
+            if (!groupItems.length) return null;
+            return (
+              <div key={group} className="space-y-0.5">
+                {group !== 'cockpit' && (
+                  <div className="px-2.5 pb-0.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-muted/80">
+                    {t(`nav.group.${group}`)}
+                  </div>
+                )}
+                {groupItems.map((n) => (
+                  <Link
+                    key={n.id}
+                    to={n.path}
+                    title={n.hintKey ? t(n.hintKey) : undefined}
+                    className={linkCls({ isActive: isNavItemActive(n, loc.pathname, loc.search) })}
+                  >
+                    <n.icon className="size-4 shrink-0" />
+                    <span className="truncate">{t(n.labelKey)}</span>
+                  </Link>
+                ))}
+              </div>
+            );
+          })}
         </nav>
         {canManageModules && (
           <div className="pt-2 pb-1">
@@ -262,7 +334,10 @@ export function Layout() {
               type="button"
               onClick={() => setModulesOpen(true)}
               title="Gérer les modules & profil métier"
-              className="flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-ink hover:border-brand/40 hover:bg-surface-2 transition cursor-pointer"
+              className={cx(
+                'flex items-center gap-1.5 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-ink hover:border-brand/40 hover:bg-surface-2 transition cursor-pointer',
+                (org.isDemo || user?.demo) && 'md:hidden',
+              )}
             >
               <SlidersHorizontal className="size-3.5 text-brand" />
               <span className="hidden sm:inline">Modules</span>
@@ -289,7 +364,7 @@ export function Layout() {
           </div>
         </main>
 
-        {fab.length > 0 && section !== 'service' && (
+        {visibleFab.length > 0 && section !== 'service' && (
           <button
             type="button"
             onClick={() => setFabOpen(true)}
@@ -299,9 +374,9 @@ export function Layout() {
             <Plus className="size-6" />
           </button>
         )}
-        <Modal open={fabOpen} sheet onClose={() => setFabOpen(false)} title={t('ux.fab')}>
-          <div className="grid grid-cols-2 gap-2">
-            {fab.map((a) => (
+        <Modal open={fabOpen} sheet size="lg" onClose={() => setFabOpen(false)} title="Que voulez-vous faire ?">
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            {visibleFab.map((a) => (
               <button
                 key={a.to}
                 type="button"
@@ -309,10 +384,20 @@ export function Layout() {
                   setFabOpen(false);
                   navigate(a.to);
                 }}
-                className="flex min-h-16 items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-left text-sm font-medium active:bg-surface-2"
+                className={cx(
+                  'flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition cursor-pointer',
+                  a.highlight
+                    ? 'border-brand/40 bg-brand-soft/35 hover:border-brand hover:bg-brand-soft/60'
+                    : 'border-border bg-surface hover:border-brand/40 hover:bg-surface-2',
+                )}
               >
-                <a.icon className="size-5 shrink-0 text-brand" />
-                {a.label}
+                <span className={cx('grid size-9 shrink-0 place-items-center rounded-lg', a.highlight ? 'bg-brand text-brand-fg' : 'bg-surface-2 text-brand')}>
+                  <a.icon className="size-4.5" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-sm font-semibold text-ink truncate">{a.label}</span>
+                  {a.hint && <span className="block text-[11px] text-muted truncate">{a.hint}</span>}
+                </span>
               </button>
             ))}
           </div>
@@ -321,10 +406,17 @@ export function Layout() {
         {/* Bottom nav mobile */}
         <nav className="no-print fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 border-t border-border bg-surface/95 pb-[env(safe-area-inset-bottom)] backdrop-blur md:hidden">
           {primary.map((n) => (
-            <NavLink key={n.id} to={n.path} end={n.path === '/'} className={({ isActive }) => cx('flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium', isActive ? 'text-brand' : 'text-muted')}>
+            <Link
+              key={n.id}
+              to={n.path}
+              className={cx(
+                'flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium',
+                isNavItemActive(n, loc.pathname, loc.search) ? 'text-brand' : 'text-muted',
+              )}
+            >
               <n.icon className="size-5" />
               <span className="max-w-full truncate px-0.5">{t(n.labelKey).split(' ')[0]}</span>
-            </NavLink>
+            </Link>
           ))}
           <button onClick={() => setMoreOpen(true)} className="flex flex-col items-center gap-0.5 py-2 text-[10px] font-medium text-muted">
             <Menu className="size-5" />
@@ -346,10 +438,15 @@ export function Layout() {
               </button>
             )}
             {rest.map((n) => (
-              <NavLink key={n.id} to={n.path} onClick={() => setMoreOpen(false)} className={linkCls}>
+              <Link
+                key={n.id}
+                to={n.path}
+                onClick={() => setMoreOpen(false)}
+                className={linkCls({ isActive: isNavItemActive(n, loc.pathname, loc.search) })}
+              >
                 <n.icon className="size-4.5" />
                 {t(n.labelKey)}
-              </NavLink>
+              </Link>
             ))}
             <button onClick={signOut} className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted hover:bg-surface-2">
               <LogOut className="size-4.5" />
@@ -381,7 +478,7 @@ function CommandPalette({ open, onClose, onOpenModules }: { open: boolean; onClo
   const { t } = useI18n();
   const nav = useNavigate();
   const { toast } = useToast();
-  const { org, updateOrg, role, wines, hasModule, can, setOverrideRole } = useOrg();
+  const { org, updateOrg, role, wines, hasModule, can, canSeeCosts, setOverrideRole } = useOrg();
   const [q, setQ] = useState('');
   const [idx, setIdx] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -398,12 +495,39 @@ function CommandPalette({ open, onClose, onOpenModules }: { open: boolean; onClo
     const pages: Cmd[] = NAV.filter((n) => isNavVisible(n, org.modules, role, !!onOpenModules)).map((n) => ({
       id: `p-${n.id}`,
       label: t(n.labelKey),
+      hint: n.hintKey ? t(n.hintKey) : undefined,
       group: t('nav.cmdkPages'),
       icon: <n.icon className="size-4" />,
       run: () => nav(n.path),
-      hay: norm(`${t(n.labelKey)} ${n.keywords ?? ''}`),
+      hay: norm(`${t(n.labelKey)} ${n.hintKey ? t(n.hintKey) : ''} ${n.keywords ?? ''}`),
     }));
     const actions: Cmd[] = [
+      ...(hasModule('achats') && ['owner', 'manager', 'sommelier', 'accountant'].includes(role)
+        ? [
+            {
+              id: 'a-scan-invoice',
+              label: 'Importer ou simuler une facture Domaine PDF (IA)',
+              hint: 'Scan OCR & calcul CMP',
+              group: t('nav.cmdkActions'),
+              icon: <FileUp className="size-4 text-brand" />,
+              run: () => nav('/achats/nouveau'),
+              hay: norm('importer simuler facture pdf ia scanner ocr reception domaine'),
+            },
+          ]
+        : []),
+      ...(hasModule('stock') && canSeeCosts
+        ? [
+            {
+              id: 'a-pos-z',
+              label: 'Clôturer un Ticket Z de caisse (IA POS)',
+              hint: 'Déstockage automatique fin de service',
+              group: t('nav.cmdkActions'),
+              icon: <ReceiptText className="size-4 text-brand" />,
+              run: () => nav(hasModule('carte') ? '/service?pos=1' : '/stock?pos=1'),
+              hay: norm('ticket z caisse pos cloture service destockage pdf ia'),
+            },
+          ]
+        : []),
       {
         id: 'a-role-staff',
         label: 'Simuler vue : Équipe de salle (masquer marges et prix d’achat)',
@@ -547,7 +671,7 @@ function CommandPalette({ open, onClose, onOpenModules }: { open: boolean; onClo
     // Actions d'organisation et simulation de rôle : réservées à l'environnement démo / admin plateforme.
     const demoActions = new Set(['a-role-staff', 'a-role-sommelier', 'a-role-owner', 'a-modules', 'a-all-modules', 'a-preset-rest', 'a-preset-negoce']);
     return [...actions.filter((a) => onOpenModules || !demoActions.has(a.id)), ...pages, ...ws];
-  }, [org.modules, role, wines, t, nav, hasModule, can, onOpenModules]);
+  }, [org.modules, role, wines, t, nav, hasModule, can, canSeeCosts, onOpenModules]);
 
   const results = useMemo(() => {
     const terms = norm(q).split(' ').filter(Boolean);

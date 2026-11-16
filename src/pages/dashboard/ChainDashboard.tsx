@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { ArrowLeftRight, BarChart3, Building2, CheckCircle2, ClipboardCheck, History, MapPinned } from 'lucide-react';
+import { ArrowLeftRight, BarChart3, Building2, CheckCircle2, ClipboardCheck, History, Layers, MapPinned } from 'lucide-react';
 import type { Movement } from '@/types';
 import { useCollection, useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
@@ -40,6 +40,11 @@ export default function ChainDashboard() {
 
   const actions = (
     <>
+      <Link to="/stock?tab=cellar">
+        <Button size="sm" icon={<Layers className="size-4" />}>
+          {t('nav.cellarPlan')}
+        </Button>
+      </Link>
       <Link to="/stock?new=transfer">
         <Button size="sm" variant="primary" icon={<ArrowLeftRight className="size-4" />}>
           {t('stock.type.transfer')}
