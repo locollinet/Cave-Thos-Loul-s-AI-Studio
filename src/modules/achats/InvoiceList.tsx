@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Truck } from 'lucide-react';
-import { useCollection } from '@/app/org';
+import { Award, Sparkles, Truck } from 'lucide-react';
+import { useCollection, useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
 import { Badge, Button, EmptyState, Field, Input, PageHeader, Select, Spinner, Stat, Table, Td, Th } from '@/ui';
 import type { PurchaseInvoice } from '@/types';
@@ -13,6 +13,7 @@ type StatusFilter = 'all' | PurchaseInvoice['status'];
 
 export default function InvoiceList() {
   const { t, intl } = useI18n();
+  const { hasModule, can } = useOrg();
   const nav = useNavigate();
   const { rows, loading } = useCollection<PurchaseInvoice>('purchaseInvoices');
   const [status, setStatus] = useState<StatusFilter>('all');
@@ -41,9 +42,17 @@ export default function InvoiceList() {
         title={t('achats.title')}
         subtitle={t('achats.subtitle')}
         actions={
-          <Button variant="primary" icon={<Plus className="size-4" />} onClick={() => nav('nouveau')}>
-            {t('achats.new')}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {hasModule('stock') && can('sommelier') && (
+              <Button size="sm" variant="secondary" icon={<Award className="size-4 text-accent" />} onClick={() => nav('/vins?tab=allocations')}>
+                Allocations vignerons
+              </Button>
+            )}
+            <Button variant="primary" icon={<Sparkles className="size-4" />} onClick={() => nav('nouveau')}>
+              <span className="hidden sm:inline">Scanner / Nouvelle facture (IA)</span>
+              <span className="sm:hidden">{t('achats.new')}</span>
+            </Button>
+          </div>
         }
       />
       {loading ? (

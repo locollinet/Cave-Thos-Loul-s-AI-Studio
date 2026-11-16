@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { BookOpen, Copy, Plus, Trash2 } from 'lucide-react';
+import { BookOpen, Copy, ExternalLink, Plus, Trash2 } from 'lucide-react';
 import { useCollection, useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
 import { Badge, Button, Card, EmptyState, Field, Input, Modal, PageHeader, Select, Spinner, useToast } from '@/ui';
@@ -85,11 +85,26 @@ export default function ListsIndex() {
                   <p className="mt-3 text-sm">{t('carte.count', { n })}</p>
                   <p className="text-xs text-muted">{t('carte.updated', { date: dateFr(l.updatedAt, intl) })}</p>
                 </Link>
-                <div className="mt-3 flex justify-end gap-1 border-t border-border pt-3">
-                  <Button size="sm" variant="ghost" icon={<Copy className="size-4" />} onClick={() => duplicate(l)}>
-                    {t('carte.duplicate')}
-                  </Button>
-                  <Button size="sm" variant="ghost" icon={<Trash2 className="size-4" />} aria-label={t('common.delete')} onClick={() => remove(l)} />
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-1 border-t border-border pt-3">
+                  <div>
+                    {l.published && l.publicId && (
+                      <a
+                        href={`/p/${l.publicId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-brand-soft/60 px-2.5 py-1.5 text-xs font-semibold text-brand hover:bg-brand-soft transition"
+                      >
+                        <ExternalLink className="size-3.5" />
+                        Vue client (QR &amp; IA)
+                      </a>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Button size="sm" variant="ghost" icon={<Copy className="size-4" />} onClick={() => duplicate(l)}>
+                      {t('carte.duplicate')}
+                    </Button>
+                    <Button size="sm" variant="ghost" icon={<Trash2 className="size-4" />} aria-label={t('common.delete')} onClick={() => remove(l)} />
+                  </div>
                 </div>
               </Card>
             );

@@ -1,7 +1,7 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
-import { ArrowDownToLine, CheckCircle2, FilePlus2, FileText, Receipt, ShieldCheck, Users, Wine as WineIcon } from 'lucide-react';
+import { CheckCircle2, FilePlus2, FileText, Receipt, ShieldCheck, Users, Wine as WineIcon } from 'lucide-react';
 import type { Movement } from '@/types';
 import { useCollection, useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
@@ -60,10 +60,24 @@ export default function NegoceDashboard() {
           </Button>
         </Link>
       )}
+      {sales && (
+        <Link to="/negoce?quick=1">
+          <Button size="sm" variant="secondary" icon={<Receipt className="size-4 text-accent" />}>
+            Vente comptoir
+          </Button>
+        </Link>
+      )}
+      {hasModule('achats') && can('sommelier') && (
+        <Link to="/achats/nouveau">
+          <Button size="sm" icon={<FileText className="size-4 text-brand" />}>
+            Scan facture IA
+          </Button>
+        </Link>
+      )}
       {can('sommelier') && (
-        <Link to="/stock?new=in">
-          <Button size="sm" icon={<ArrowDownToLine className="size-4" />}>
-            {t('stock.type.in')}
+        <Link to="/stock?tab=cellar">
+          <Button size="sm" icon={<WineIcon className="size-4" />}>
+            {t('nav.cellarPlan')}
           </Button>
         </Link>
       )}

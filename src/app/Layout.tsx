@@ -4,10 +4,13 @@ import {
   ArrowDownToLine,
   ArrowRightLeft,
   ArrowUpFromLine,
+  Award,
   BarChart3,
+  Calculator,
   ClipboardCheck,
   Command,
   CornerDownLeft,
+  FileText,
   FileUp,
   GlassWater,
   Layers,
@@ -125,20 +128,28 @@ export function Layout() {
   const section = loc.pathname.split('/')[1] ?? '';
 
   const canAchats = hasModule('achats') && ['owner', 'manager', 'sommelier', 'accountant'].includes(role);
+  const canNegoce = hasModule('negoce') && ['owner', 'manager', 'accountant'].includes(role);
+  const canCompta = hasModule('compta') && ['owner', 'manager', 'accountant'].includes(role);
   const canPilotage = hasModule('pilotage') && ['owner', 'manager', 'sommelier', 'accountant'].includes(role);
-  const fab: { to: string; icon: LucideIcon; label: string; hint?: string; show: boolean; highlight?: boolean }[] = [
-    { to: '/achats/nouveau', icon: FileUp, label: 'Importer facture PDF (IA)', hint: 'Scan OCR Gemini & calcul CMP', show: canAchats, highlight: true },
-    { to: hasModule('carte') ? '/service?pos=1' : '/stock?pos=1', icon: ReceiptText, label: 'Clôturer Ticket Z (IA)', hint: 'Déstockage fin de service POS', show: hasModule('stock') && canSeeCosts, highlight: true },
-    { to: '/stock?tab=cellar', icon: Layers, label: 'Plan de cave (Goulots)', hint: 'Localiser ou ranger une bouteille', show: hasModule('stock') },
-    { to: '/stock?new=in', icon: ArrowDownToLine, label: t('stock.type.in'), hint: 'Réception manuelle en cave', show: hasModule('stock') },
-    { to: '/stock?new=out', icon: ArrowUpFromLine, label: t('stock.type.out'), hint: 'Sortie cave, service ou casse', show: hasModule('stock') },
-    { to: '/stock?new=transfer', icon: ArrowRightLeft, label: t('stock.type.transfer'), hint: 'Déplacer entre sites', show: hasModule('stock') && sites.length > 1 },
-    { to: '/service', icon: GlassWater, label: t('ux.fab.service'), hint: 'Verres, Coravin & service salle', show: items.some((n) => n.id === 'service') },
-    { to: '/inventaire', icon: ClipboardCheck, label: t('ux.fab.inventory'), hint: 'Comptage rapide de cave', show: hasModule('stock') },
-    { to: '/vins?new=1', icon: Plus, label: t('ux.fab.newWine'), hint: 'Créer une référence vin', show: hasModule('stock') && can('manager') },
-    { to: '/pilotage?tab=vintages', icon: BarChart3, label: 'Analyse Millésimes', hint: 'Verticales & apogées par année', show: canPilotage },
+  const isHospitality = org.profile === 'restaurant' || org.profile === 'chaine';
+
+  const quickActionsPool: { id: string; to: string; icon: LucideIcon; label: string; hint?: string; show: boolean; highlight?: boolean; order: number }[] = [
+    { id: 'service', to: '/service', icon: GlassWater, label: t('ux.fab.service'), hint: 'Verres, Coravin & service salle', show: items.some((n) => n.id === 'service'), highlight: isHospitality, order: isHospitality ? 1 : 9 },
+    { id: 'pos', to: hasModule('carte') ? '/service?pos=1' : '/stock?pos=1', icon: ReceiptText, label: 'Clôturer Ticket Z (IA)', hint: 'Déstockage fin de service POS', show: hasModule('stock') && canSeeCosts && isHospitality, highlight: true, order: 2 },
+    { id: 'quicksale', to: '/negoce?quick=1', icon: Zap, label: 'Vente comptoir express', hint: 'Encaissement direct & sortie cave', show: canNegoce, highlight: !isHospitality, order: isHospitality ? 10 : 1 },
+    { id: 'quote', to: '/negoce?new=quote', icon: FileText, label: 'Nouveau devis / Facture B2B', hint: 'Offre commerciale, BL & facture', show: canNegoce, highlight: !isHospitality, order: isHospitality ? 11 : 2 },
+    { id: 'achats', to: '/achats/nouveau', icon: FileUp, label: 'Importer facture PDF (IA)', hint: 'Scan OCR Gemini & calcul CMP', show: canAchats, highlight: true, order: 3 },
+    { id: 'plan', to: '/stock?tab=cellar', icon: Layers, label: 'Plan de cave (Goulots)', hint: 'Localiser ou ranger une bouteille', show: hasModule('stock'), order: 4 },
+    { id: 'in', to: '/stock?new=in', icon: ArrowDownToLine, label: t('stock.type.in'), hint: 'Réception manuelle en cave', show: hasModule('stock'), order: 5 },
+    { id: 'out', to: '/stock?new=out', icon: ArrowUpFromLine, label: t('stock.type.out'), hint: 'Sortie cave, service ou casse', show: hasModule('stock'), order: 6 },
+    { id: 'transfer', to: '/stock?new=transfer', icon: ArrowRightLeft, label: t('stock.type.transfer'), hint: 'Déplacer entre sites', show: hasModule('stock') && sites.length > 1, order: org.profile === 'chaine' ? 3 : 7 },
+    { id: 'vintages', to: '/pilotage?tab=vintages', icon: BarChart3, label: 'Analyse Millésimes & Verticales', hint: 'Statistiques par année & apogées', show: canPilotage, order: 8 },
+    { id: 'alloc', to: '/vins?tab=allocations', icon: Award, label: 'Allocations vignerons', hint: 'Quotas primeurs & commandes domaines', show: hasModule('stock') && can('sommelier'), order: 9 },
+    { id: 'drm', to: '/compta/drm', icon: Calculator, label: 'DRM Douanes mensuelle', hint: 'Déclaration de régie & stock hl', show: canCompta, order: isHospitality ? 12 : 7 },
+    { id: 'inv', to: '/inventaire', icon: ClipboardCheck, label: t('ux.fab.inventory'), hint: 'Comptage rapide de cave', show: hasModule('stock'), order: 13 },
+    { id: 'newwine', to: '/vins?new=1', icon: Plus, label: t('ux.fab.newWine'), hint: 'Créer une référence vin', show: hasModule('stock') && can('manager'), order: 14 },
   ];
-  const visibleFab = fab.filter((a) => a.show);
+  const visibleFab = quickActionsPool.filter((a) => a.show).sort((a, b) => a.order - b.order);
 
   const linkCls = ({ isActive }: { isActive: boolean }) =>
     cx(
@@ -642,8 +653,56 @@ function CommandPalette({ open, onClose, onOpenModules }: { open: boolean; onClo
             },
           ]
         : []),
+      ...(hasModule('stock') && can('sommelier')
+        ? [
+            {
+              id: 'a-alloc',
+              label: 'Allocations vignerons & Primeurs',
+              hint: 'Quotas & campagnes domaines',
+              group: t('nav.cmdkActions'),
+              icon: <Award className="size-4 text-accent" />,
+              run: () => nav('/vins?tab=allocations'),
+              hay: norm('allocations vignerons primeurs quotas commandes domaines'),
+            },
+          ]
+        : []),
+      ...(hasModule('pilotage') && ['owner', 'manager', 'sommelier', 'accountant'].includes(role)
+        ? [
+            {
+              id: 'a-vintages',
+              label: 'Analyse Millésimes, Verticales & Apogées',
+              hint: 'Consolidation par année',
+              group: t('nav.cmdkActions'),
+              icon: <BarChart3 className="size-4 text-brand" />,
+              run: () => nav('/pilotage?tab=vintages'),
+              hay: norm('analyse millesimes verticales apogees annees consolidation'),
+            },
+          ]
+        : []),
+      ...(hasModule('compta') && ['owner', 'manager', 'accountant'].includes(role)
+        ? [
+            {
+              id: 'a-drm',
+              label: 'Déclaration DRM Douanes mensuelle',
+              hint: 'Régie & volumes hL',
+              group: t('nav.cmdkActions'),
+              icon: <Calculator className="size-4 text-brand" />,
+              run: () => nav('/compta/drm'),
+              hay: norm('drm douanes declaration regie mensuelle hectolitres'),
+            },
+          ]
+        : []),
       ...(hasModule('negoce') && ['owner', 'manager', 'accountant'].includes(role)
         ? [
+            {
+              id: 'a-quicksale',
+              label: 'Vente comptoir express',
+              hint: 'Encaissement direct boutique / cave',
+              group: t('nav.cmdkActions'),
+              icon: <Zap className="size-4 text-accent" />,
+              run: () => nav('/negoce?quick=1'),
+              hay: norm('vente comptoir express caisse boutique client'),
+            },
             {
               id: 'a-quote',
               label: 'Nouveau devis',

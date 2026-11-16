@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Archive, BookOpen, Download, FileUp, Layers, ListChecks, Map as MapIcon, Percent, Plus, Send, Sparkles, Tag, Wine as WineIcon, X } from 'lucide-react';
+import { Archive, BookOpen, Download, FileUp, ListChecks, Map as MapIcon, Percent, Plus, Send, Sparkles, Tag, Wine as WineIcon, X } from 'lucide-react';
 import type { Wine, WineColor } from '@/types';
 import { useCollection, useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
@@ -49,7 +49,10 @@ export default function WinesPage() {
   const navigate = useNavigate();
   const { wines, stock, activeSiteId, can, org, orgId, commit, path, canSeeCosts } = useOrg();
   const [params, setParams] = useSearchParams();
-  const [tab, setTab] = useState<'catalog' | 'allocations' | 'duplicates' | 'archived'>('catalog');
+  const urlWineTab = params.get('tab');
+  const [tab, setTab] = useState<'catalog' | 'allocations' | 'duplicates' | 'archived'>(() =>
+    urlWineTab === 'allocations' || urlWineTab === 'duplicates' || urlWineTab === 'archived' ? urlWineTab : 'catalog',
+  );
   const [q, setQ] = useState('');
   const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
   const [group, setGroup] = useState<WineGroupBy>('terroir');
@@ -68,7 +71,23 @@ export default function WinesPage() {
     if (params.get('new') === '1' && can('manager')) setCreating(true);
     const o = params.get('open');
     if (o) setOpenId(o);
+    const tTab = params.get('tab');
+    setTab(tTab === 'allocations' || tTab === 'duplicates' || tTab === 'archived' ? tTab : 'catalog');
   }, [params, can]);
+
+  const switchTab = (next: 'catalog' | 'allocations' | 'duplicates' | 'archived') => {
+    setTab(next);
+    clear();
+    setParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        if (next === 'catalog') p.delete('tab');
+        else p.set('tab', next);
+        return p;
+      },
+      { replace: true },
+    );
+  };
 
   const qty = useMemo(() => stockByWine(stock, activeSiteId), [stock, activeSiteId]);
   const duplicateGroups = useMemo(() => findDuplicateGroups(wines), [wines]);
@@ -214,9 +233,6 @@ export default function WinesPage() {
         subtitle={t('wines.subtitle', { n: wines.filter((w) => !w.isArchived).length })}
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" icon={<Layers className="size-4 text-brand" />} onClick={() => navigate('/stock?tab=cellar')}>
-              {t('stock.cellarPlan')}
-            </Button>
             <Button
               size="sm"
               variant="secondary"
@@ -250,7 +266,7 @@ export default function WinesPage() {
       />
       <Tabs
         value={tab}
-        onChange={(v) => { setTab(v); clear(); }}
+        onChange={switchTab}
         tabs={[
           { value: 'catalog', label: t('wines.catalog') },
           ...(can('sommelier') ? [{ value: 'allocations' as const, label: 'Allocations vignerons' }] : []),

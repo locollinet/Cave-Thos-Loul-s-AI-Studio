@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { BellRing, FilePlus2, FileText, Trash2, Zap } from 'lucide-react';
 import { useOrg } from '@/app/org';
@@ -20,8 +20,26 @@ export default function DocumentsPage() {
   const { docs, payments, loading } = useSales();
   const actions = useDocActions();
   const navigate = useNavigate();
-  const [quickSaleOpen, setQuickSaleOpen] = useState(false);
   const [sp, setSp] = useSearchParams();
+  const [quickSaleOpen, setQuickSaleOpen] = useState(() => sp.get('quick') === '1');
+
+  useEffect(() => {
+    if (sp.get('quick') === '1') setQuickSaleOpen(true);
+  }, [sp]);
+
+  const closeQuickSale = () => {
+    setQuickSaleOpen(false);
+    if (sp.has('quick')) {
+      setSp(
+        (prev) => {
+          const p = new URLSearchParams(prev);
+          p.delete('quick');
+          return p;
+        },
+        { replace: true },
+      );
+    }
+  };
   const view = sp.get('view');
   const type: DocType | 'all' | 'remind' = view === 'quote' || view === 'invoice' || view === 'credit_note' || view === 'remind' ? view : 'all';
   const setType = (v: DocType | 'all' | 'remind') => setSp(v === 'all' ? {} : { view: v }, { replace: true });
@@ -140,7 +158,7 @@ export default function DocumentsPage() {
           </tbody>
         </Table>
       )}
-      <QuickSaleModal open={quickSaleOpen} onClose={() => setQuickSaleOpen(false)} />
+      <QuickSaleModal open={quickSaleOpen} onClose={closeQuickSale} />
     </>
   );
 }
