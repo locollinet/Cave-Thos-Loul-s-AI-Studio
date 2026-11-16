@@ -35,6 +35,7 @@ import { Modal, cx, useToast } from '@/ui';
 import { BrandMark, Monogram } from '@/pages/Auth';
 import { OfflineBanner } from '@/components/OfflineBanner';
 import { ModuleSwitcherModal } from '@/components/ModuleSwitcherModal';
+import { AssistantPanel } from '@/modules/assistant/AssistantPanel';
 import { wineLabel, norm } from '@/lib/wine';
 import { useAutoRepublish } from '@/modules/carte/autoPublish';
 import type { BrandTheme } from '@/types';
@@ -92,6 +93,7 @@ export function Layout() {
   const whiteLabel = !!(org.brandApp && org.brand);
   useWhiteLabel(org.brand, whiteLabel, dark);
   const [palette, setPalette] = useState(false);
+  const [assistantOpen, setAssistantOpen] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const [modulesOpen, setModulesOpen] = useState(false);
   // Modifier l'organisation (modules, profil) : administrateur plateforme ou espace de démonstration.
@@ -357,6 +359,18 @@ export function Layout() {
               </span>
             </button>
           )}
+          {section !== 'service' && (
+            <button
+              type="button"
+              onClick={() => setAssistantOpen(true)}
+              title={t('assistant.subtitle')}
+              aria-label={t('assistant.title')}
+              className="flex items-center gap-1.5 rounded-lg border border-brand/30 bg-brand-soft/30 px-2.5 py-1.5 text-xs font-semibold text-brand transition hover:border-brand hover:bg-brand-soft/60 cursor-pointer"
+            >
+              <Sparkles className="size-3.5" />
+              <span className="hidden sm:inline">{t('assistant.title')}</span>
+            </button>
+          )}
           <button onClick={() => setPalette(true)} className="rounded-lg p-2 text-muted hover:bg-surface-2 md:hidden" aria-label="Rechercher">
             <Search className="size-5" />
           </button>
@@ -467,7 +481,13 @@ export function Layout() {
         </Modal>
       </div>
 
-      <CommandPalette open={palette} onClose={() => setPalette(false)} onOpenModules={canManageModules ? () => setModulesOpen(true) : undefined} />
+      <CommandPalette
+        open={palette}
+        onClose={() => setPalette(false)}
+        onOpenModules={canManageModules ? () => setModulesOpen(true) : undefined}
+        onOpenAssistant={() => setAssistantOpen(true)}
+      />
+      <AssistantPanel open={assistantOpen} onClose={() => setAssistantOpen(false)} />
       {canManageModules && <ModuleSwitcherModal open={modulesOpen} onClose={() => setModulesOpen(false)} />}
     </div>
   );
@@ -485,7 +505,17 @@ interface Cmd {
   hay: string;
 }
 
-function CommandPalette({ open, onClose, onOpenModules }: { open: boolean; onClose: () => void; onOpenModules?: () => void }) {
+function CommandPalette({
+  open,
+  onClose,
+  onOpenModules,
+  onOpenAssistant,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onOpenModules?: () => void;
+  onOpenAssistant?: () => void;
+}) {
   const { t } = useI18n();
   const nav = useNavigate();
   const { toast } = useToast();
@@ -513,6 +543,19 @@ function CommandPalette({ open, onClose, onOpenModules }: { open: boolean; onClo
       hay: norm(`${t(n.labelKey)} ${n.hintKey ? t(n.hintKey) : ''} ${n.keywords ?? ''}`),
     }));
     const actions: Cmd[] = [
+      ...(onOpenAssistant
+        ? [
+            {
+              id: 'a-assistant',
+              label: t('assistant.open'),
+              hint: t('assistant.subtitle'),
+              group: t('nav.cmdkActions'),
+              icon: <Sparkles className="size-4 text-brand" />,
+              run: () => onOpenAssistant(),
+              hay: norm('assistant ia copilote question analyse aide saisir croiser'),
+            },
+          ]
+        : []),
       ...(hasModule('achats') && ['owner', 'manager', 'sommelier', 'accountant'].includes(role)
         ? [
             {

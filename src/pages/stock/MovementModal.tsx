@@ -7,6 +7,7 @@ import { Button, Field, Input, Modal, NumberInput, Segmented, Select, useToast }
 import { WinePicker } from '@/components/WinePicker';
 import { buildMovementOps, qtyAt, withStockFields } from '@/data/stock';
 import { today } from '@/lib/utils';
+import type { MovementPrefillPayload } from '@/modules/assistant/types';
 
 const REASONS: Record<MovementType, MovementReason[]> = {
   in: ['achat', 'retour', 'autre'],
@@ -20,27 +21,34 @@ export function MovementModal({
   initialType = 'in',
   initialWine,
   initialSiteId,
+  prefill,
 }: {
   onClose: () => void;
   initialType?: MovementType;
   initialWine?: Wine;
   initialSiteId?: string;
+  prefill?: MovementPrefillPayload;
 }) {
   const t = useT();
   const { toast } = useToast();
   const { user } = useAuth();
-  const { orgId, sites, stock, partners, commit, activeSiteId } = useOrg();
-  const [type, setType] = useState<MovementType>(initialType);
-  const [wine, setWine] = useState<Wine | undefined>(initialWine);
-  const [siteId, setSiteId] = useState(initialSiteId ?? (activeSiteId !== 'all' ? activeSiteId : sites[0]?.id ?? ''));
+  const { orgId, wines, sites, stock, partners, commit, activeSiteId, canSeeCosts } = useOrg();
+  const startType = prefill?.type ?? initialType;
+  const [type, setType] = useState<MovementType>(startType);
+  const [wine, setWine] = useState<Wine | undefined>(
+    () => initialWine ?? (prefill?.wineId ? wines.find((w) => w.id === prefill.wineId) : undefined),
+  );
+  const [siteId, setSiteId] = useState(
+    prefill?.siteId ?? initialSiteId ?? (activeSiteId !== 'all' ? activeSiteId : sites[0]?.id ?? ''),
+  );
   const [toSiteId, setToSiteId] = useState(sites.find((s) => s.id !== siteId)?.id ?? '');
-  const [qty, setQty] = useState<number | undefined>(1);
-  const [reason, setReason] = useState<MovementReason>(REASONS[initialType][0]);
+  const [qty, setQty] = useState<number | undefined>(prefill?.qty ?? 1);
+  const [reason, setReason] = useState<MovementReason>(prefill?.reason ?? REASONS[startType][0]);
   const [date, setDate] = useState(today());
-  const [cost, setCost] = useState<number | undefined>(initialWine?.buyPriceHT);
+  const [cost, setCost] = useState<number | undefined>(canSeeCosts ? (prefill?.unitCostHT ?? initialWine?.buyPriceHT) : undefined);
   const [partnerId, setPartnerId] = useState('');
-  const [note, setNote] = useState('');
-  const [bin, setBin] = useState('');
+  const [note, setNote] = useState(prefill?.note ?? '');
+  const [bin, setBin] = useState(prefill?.bin ?? '');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -112,9 +120,9 @@ export function MovementModal({
           className="w-full [&>button]:flex-1"
           options={(['in', 'out', 'transfer', 'adjust'] as MovementType[]).map((v) => ({ value: v, label: t(`stock.type.${v}`) }))}
         />
-        <Field label={t('stock.wine')}>
-          <WinePicker value={wine?.id} onChange={(w) => { setWine(w); if (type === 'in') setCost(w.buyPriceHT); }} siteId={siteId} placeholder={t('common.search')} autoFocus={!initialWine} />
-        </Field>
+          <Field label={t('stock.wine')}>
+            <WinePicker value={wine?.id} onChange={(w) => { setWine(w); if (type === 'in' && canSeeCosts) setCost(w.buyPriceHT); }} siteId={siteId} placeholder={t('common.search')} autoFocus={!initialWine} />
+          </Field>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={type === 'transfer' ? t('stock.fromSite') : t('common.site')}>
             <Select value={siteId} onChange={(e) => setSiteId(e.target.value)}>
@@ -155,7 +163,7 @@ export function MovementModal({
           <Field label={t('common.date')}>
             <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
-          {type === 'in' && (
+          {type === 'in' && canSeeCosts && (
             <Field label={t('stock.unitCost')}>
               <NumberInput value={cost} onChange={setCost} step="0.01" min={0} />
             </Field>

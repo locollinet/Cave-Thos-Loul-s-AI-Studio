@@ -7,8 +7,10 @@ import { Button, Checkbox, Field, Input, Modal, NumberInput, Select, Textarea, u
 import { canonicalKey, formatLabel } from '@/lib/wine';
 import { round2, uid, ttcFromHt } from '@/lib/utils';
 import { wineImageSetOps } from '@/lib/image';
+import { buildMovementOps } from '@/data/stock';
 import type { Op } from '@/data/store';
 import { LabelScan, type LabelFormField, type PendingPhoto } from '@/components/WinePhotoLabel';
+import type { WinePrefillPayload } from '@/modules/assistant/types';
 
 const FORMATS = [37.5, 75, 150, 300, 600];
 
@@ -16,27 +18,52 @@ export function effectiveCoefficient(wine: Pick<Wine, 'coefficient'>, producer: 
   return wine.coefficient ?? producer?.coefficient ?? orgDefault;
 }
 
-export function WineFormModal({ wine, onClose, onSaved }: { wine?: Wine; onClose: () => void; onSaved?: (w: Wine) => void }) {
+export function WineFormModal({
+  wine,
+  prefill,
+  onClose,
+  onSaved,
+}: {
+  wine?: Wine;
+  prefill?: WinePrefillPayload;
+  onClose: () => void;
+  onSaved?: (w: Wine) => void;
+}) {
   const t = useT();
   const { toast } = useToast();
-  const { org, producers, wines, commit, path, can, member } = useOrg();
+  const { org, orgId, sites, activeSiteId, stock, producers, wines, commit, path, can, member } = useOrg();
   const [f, setF] = useState<Wine>(
     () =>
       wine ?? {
         id: uid(),
-        producer: '',
-        name: '',
-        vintage: String(new Date().getFullYear() - 3),
-        color: 'rouge',
-        formatCl: 75,
+        producer: prefill?.producer ?? '',
+        name: prefill?.name ?? prefill?.cuvee ?? prefill?.appellation ?? '',
+        appellation: prefill?.appellation,
+        cuvee: prefill?.cuvee,
+        vintage: prefill?.vintage ?? String(new Date().getFullYear() - 3),
+        color: prefill?.color ?? 'rouge',
+        formatCl: prefill?.formatCl ?? 75,
+        region: prefill?.region,
+        subRegion: prefill?.subRegion,
+        country: prefill?.country,
+        grapes: prefill?.grapes,
+        buyPriceHT: prefill?.buyPriceHT,
+        sellPriceHT: prefill?.sellPriceHT,
+        menuPriceTTC: prefill?.menuPriceTTC,
         alertThreshold: 3,
         canonicalKey: '',
         createdAt: Date.now(),
         updatedAt: Date.now(),
       },
   );
+  const [initialQty, setInitialQty] = useState<number | undefined>(() => (!wine && prefill?.initialQty ? prefill.initialQty : undefined));
+  const [initialSiteId, setInitialSiteId] = useState<string>(
+    () => prefill?.initialSiteId ?? (activeSiteId !== 'all' ? activeSiteId : sites[0]?.id ?? ''),
+  );
   const [busy, setBusy] = useState(false);
-  const [touched, setTouched] = useState<Set<keyof Wine>>(() => new Set());
+  const [touched, setTouched] = useState<Set<keyof Wine>>(
+    () => new Set(prefill ? (Object.keys(prefill) as (keyof Wine)[]) : []),
+  );
   const [photo, setPhoto] = useState<PendingPhoto | null>(null);
   const [preparing, setPreparing] = useState(false);
   const set = <K extends keyof Wine>(k: K, v: Wine[K]) => {
@@ -84,6 +111,26 @@ export function WineFormModal({ wine, onClose, onSaved }: { wine?: Wine; onClose
     if (keepPhoto && photo) {
       const { dataUrl, mimeType, width, height, source } = photo;
       ops.push(...wineImageSetOps(path, saved.id, { dataUrl, mimeType, width, height, source, updatedBy: member?.uid }, saved.updatedAt));
+    }
+    if (!wine && initialQty && initialQty > 0 && initialSiteId && member) {
+      ops.push(
+        ...buildMovementOps(
+          orgId,
+          [
+            {
+              wine: saved,
+              siteId: initialSiteId,
+              type: 'in',
+              qty: initialQty,
+              reason: 'achat',
+              unitCostHT: saved.buyPriceHT,
+            },
+          ],
+          { userId: member.uid, userName: member.name },
+          saved.updatedAt,
+          stock,
+        ),
+      );
     }
     try {
       await commit(ops);
@@ -183,6 +230,22 @@ export function WineFormModal({ wine, onClose, onSaved }: { wine?: Wine; onClose
         </Field>
 
         <div className="sm:col-span-2 mt-1 border-t border-border pt-4 text-sm font-semibold">{t('wines.management')}</div>
+        {!wine && sites.length > 0 && (
+          <>
+            <Field label="Quantité initiale à entrer en stock (optionnel)">
+              <NumberInput value={initialQty} onChange={setInitialQty} min={0} step="1" placeholder="0" />
+            </Field>
+            <Field label={t('common.site')}>
+              <Select value={initialSiteId} onChange={(e) => setInitialSiteId(e.target.value)}>
+                {sites.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          </>
+        )}
         <Field label={t('wines.alertThreshold')}>
           <NumberInput value={f.alertThreshold} onChange={(v) => set('alertThreshold', v ?? 0)} min={0} />
         </Field>

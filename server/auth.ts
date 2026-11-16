@@ -40,7 +40,36 @@ export const QUOTAS = {
   publicIp: 20, // par IP sur le sommelier public
   demoIp: 30, // par IP sans compte (mode démo)
   anonymous: 600, // plafond global sans compte, toutes IP confondues (AI_ANON_PER_HOUR)
+  assistantUser: 60, // questions par heure et par utilisateur sur l'assistant
+  assistantDemoIp: 15, // questions par heure et par IP en mode démo sur l'assistant
 };
+
+const QUESTION_TTL_MS = 2 * 60_000;
+const MAX_CALLS_PER_QUESTION = 5; // 1 appel initial + jusqu'à 4 tours d'outils
+const activeQuestions = new Map<string, { ownerKey: string; calls: number; at: number }>();
+
+/**
+ * Gère le décompte par question (`X-Question-Id`) pour l'assistant multi-tours :
+ * - 1er tour d'un `questionId` : vérifie et consomme 1 unité de quota.
+ * - Tours suivants (2..5) du même `questionId` (et même utilisateur/IP) dans les 2 minutes : ne re-consomme pas le quota horaire.
+ * - Au-delà de 5 appels sur le même `questionId` : refuse (protection anti-boucle / anti-abus).
+ */
+export function checkQuestionTurn(questionId: string, ownerKey: string, now = Date.now()): 'first' | 'continuation' | 'exceeded' {
+  if (activeQuestions.size > 5_000) {
+    for (const [k, v] of activeQuestions) if (now - v.at > QUESTION_TTL_MS) activeQuestions.delete(k);
+  }
+  if (!questionId) return 'first';
+  const cur = activeQuestions.get(questionId);
+  if (!cur || now - cur.at > QUESTION_TTL_MS) {
+    activeQuestions.set(questionId, { ownerKey, calls: 1, at: now });
+    return 'first';
+  }
+  if (cur.ownerKey !== ownerKey || cur.calls >= MAX_CALLS_PER_QUESTION) {
+    return 'exceeded';
+  }
+  cur.calls += 1;
+  return 'continuation';
+}
 
 const anonymousCap = () => Number(process.env.AI_ANON_PER_HOUR) || QUOTAS.anonymous;
 
@@ -58,7 +87,10 @@ export function take(rules: [key: string, max: number][], now = Date.now()): boo
   return ok;
 }
 
-export const resetQuotas = () => hits.clear();
+export const resetQuotas = () => {
+  hits.clear();
+  activeQuestions.clear();
+};
 
 /* ------------------------------------------------------------------ jetons Firebase (vérification locale de la signature) */
 
@@ -179,12 +211,28 @@ export async function requireUser(req: Request, res: Response, next: NextFunctio
   const token = auth.startsWith('Bearer ') ? auth.slice(7).trim() : '';
   const orgId = headerStr(req, 'x-org-id', 160);
   const publicListId = headerStr(req, 'x-public-list-id', 64);
+  const questionId = headerStr(req, 'x-question-id', 80);
   const route = `${req.baseUrl}${req.path}`.replace(/\/+$/, '');
+  const isAssistant = route.startsWith('/api/ai/assistant');
+  const isAssistantQuery = route === '/api/ai/assistant';
 
   if (token && firebaseConfigured()) {
     const user = await verifyIdToken(token);
     if (!user) return res.status(401).json({ error: 'Session expirée ou invalide : reconnectez-vous.' });
+    if (isAssistantQuery && questionId) {
+      const qState = checkQuestionTurn(questionId, `u:${user.uid}`);
+      if (qState === 'exceeded') return res.status(429).json({ error: 'Nombre maximal de tours atteint pour cette question.' });
+      if (qState === 'continuation') {
+        res.locals.aiAccess = { kind: 'user', uid: user.uid };
+        return next();
+      }
+    }
+    if (route === '/api/ai/assistant/feedback') {
+      res.locals.aiAccess = { kind: 'user', uid: user.uid };
+      return next();
+    }
     const rules: [string, number][] = [[`u:${user.uid}`, QUOTAS.user]];
+    if (isAssistant) rules.push([`ast-u:${user.uid}`, QUOTAS.assistantUser]);
     if (orgId) rules.push([`org:${orgId}`, QUOTAS.org]);
     if (!take(rules)) return res.status(429).json({ error: 'Quota IA horaire atteint pour votre compte ou votre organisation. Réessayez un peu plus tard.' });
     res.locals.aiAccess = { kind: 'user', uid: user.uid };
@@ -203,8 +251,25 @@ export async function requireUser(req: Request, res: Response, next: NextFunctio
   }
 
   if (firebaseConfigured() && process.env.DEMO_AI === 'off') return res.status(401).json({ error: 'Connexion requise pour utiliser l’assistant IA.' });
-  if (!take([[`demo-ip:${ip}`, QUOTAS.demoIp], ['anonymous', anonymousCap()]])) {
-    return res.status(429).json({ error: `Limite du mode démo atteinte (${QUOTAS.demoIp} requêtes par heure). Créez un compte pour continuer.` });
+  if (route === '/api/ai/assistant/feedback') {
+    res.locals.aiAccess = { kind: 'demo' };
+    return next();
+  }
+  if (isAssistantQuery && questionId) {
+    const qState = checkQuestionTurn(questionId, `demo-ip:${ip}`);
+    if (qState === 'exceeded') return res.status(429).json({ error: 'Nombre maximal de tours atteint pour cette question.' });
+    if (qState === 'continuation') {
+      res.locals.aiAccess = { kind: 'demo' };
+      return next();
+    }
+  }
+  const demoRules: [string, number][] = [
+    [`demo-ip:${ip}`, QUOTAS.demoIp],
+    ['anonymous', anonymousCap()],
+  ];
+  if (isAssistant) demoRules.push([`ast-demo:${ip}`, QUOTAS.assistantDemoIp]);
+  if (!take(demoRules)) {
+    return res.status(429).json({ error: `Limite du mode démo atteinte (${isAssistant ? QUOTAS.assistantDemoIp : QUOTAS.demoIp} requêtes par heure). Créez un compte pour continuer.` });
   }
   res.locals.aiAccess = { kind: 'demo' };
   next();

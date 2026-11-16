@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { Archive, BookOpen, ChevronDown, Download, FileUp, ListChecks, Map as MapIcon, Percent, Plus, Send, Sparkles, Tag, Wine as WineIcon, X } from 'lucide-react';
 import type { Wine, WineColor } from '@/types';
+import type { WinePrefillPayload } from '@/modules/assistant/types';
 import { useCollection, useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
 import { Badge, Button, Card, Checkbox, EmptyState, Field, Modal, NumberInput, PageHeader, Segmented, Select, SortTh, Tabs, Td, Th, cx, useToast } from '@/ui';
@@ -47,18 +48,28 @@ export default function WinesPage() {
   const { t, intl } = useI18n();
   const { toast, confirm } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const { wines, stock, activeSiteId, can, org, orgId, commit, path, canSeeCosts } = useOrg();
   const [params, setParams] = useSearchParams();
   const urlWineTab = params.get('tab');
   const [tab, setTab] = useState<'catalog' | 'allocations' | 'duplicates' | 'archived'>(() =>
     urlWineTab === 'allocations' || urlWineTab === 'duplicates' || urlWineTab === 'archived' ? urlWineTab : 'catalog',
   );
-  const [q, setQ] = useState('');
-  const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
+  const [q, setQ] = useState(() => params.get('q') ?? '');
+  const [filters, setFilters] = useState(() => ({
+    ...EMPTY_FILTERS,
+    color: params.get('color') ?? '',
+    region: params.get('region') ?? '',
+    vintage: params.get('vintage') ?? '',
+    stock: params.get('stock') ?? '',
+    apogee: params.get('apogee') === '1',
+  }));
   const [group, setGroup] = useState<WineGroupBy>('terroir');
   const [sort, setSort] = useState<WineSort>('producer');
   const [reverse, setReverse] = useState(false);
-  const [creating, setCreating] = useState(params.get('new') === '1');
+  const locState = (location.state ?? null) as { winePrefill?: WinePrefillPayload } | null;
+  const [winePrefill, setWinePrefill] = useState<WinePrefillPayload | undefined>(() => locState?.winePrefill);
+  const [creating, setCreating] = useState(() => params.get('new') === '1' || !!locState?.winePrefill);
   const [importing, setImporting] = useState(false);
   const [openId, setOpenId] = useState<string | null>(params.get('open'));
   const [showMap, setShowMap] = useState(false);
@@ -69,7 +80,35 @@ export default function WinesPage() {
   const [toolsOpen, setToolsOpen] = useState(false);
 
   useEffect(() => {
-    if (params.get('new') === '1' && can('manager')) setCreating(true);
+    const st = (location.state ?? null) as { winePrefill?: WinePrefillPayload } | null;
+    if (st?.winePrefill && can('accountant')) {
+      setWinePrefill(st.winePrefill);
+      setCreating(true);
+    }
+  }, [location.state, can]);
+
+  const urlFilterKey = ['q', 'color', 'region', 'subRegion', 'producer', 'vintage', 'stock', 'apogee']
+    .map((k) => params.get(k) ?? '')
+    .join('|');
+
+  useEffect(() => {
+    if (urlFilterKey === '|||||||') return;
+    setQ(params.get('q') ?? '');
+    setFilters({
+      ...EMPTY_FILTERS,
+      color: params.get('color') ?? '',
+      region: params.get('region') ?? '',
+      subRegion: params.get('subRegion') ?? '',
+      producer: params.get('producer') ?? '',
+      vintage: params.get('vintage') ?? '',
+      stock: params.get('stock') ?? '',
+      apogee: params.get('apogee') === '1',
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlFilterKey]);
+
+  useEffect(() => {
+    if (params.get('new') === '1' && can('accountant')) setCreating(true);
     const o = params.get('open');
     if (o) setOpenId(o);
     const tTab = params.get('tab');
@@ -369,7 +408,17 @@ export default function WinesPage() {
       {bulk === 'price' && <PriceModal wines={chosen} onClose={() => setBulk(null)} onDone={clear} />}
       {bulk === 'techSheet' && <BatchTechSheetModal wines={chosen.length > 0 ? chosen : pool} onClose={() => setBulk(null)} onDone={clear} />}
       {shelfOpen && <ShelfTalkerModal open={shelfOpen} onClose={() => setShelfOpen(false)} wines={chosen.length > 0 ? chosen : list} />}
-      {creating && can('manager') && <WineFormModal onClose={() => { setCreating(false); clearWineParams(); }} onSaved={(w) => setOpenId(w.id)} />}
+      {creating && can('accountant') && (
+        <WineFormModal
+          prefill={winePrefill}
+          onClose={() => {
+            setCreating(false);
+            setWinePrefill(undefined);
+            clearWineParams();
+          }}
+          onSaved={(w) => setOpenId(w.id)}
+        />
+      )}
       {importing && <ImportWinesModal onClose={() => setImporting(false)} />}
       {opened && <WineDrawer wine={opened} onClose={() => open(null)} />}
     </div>

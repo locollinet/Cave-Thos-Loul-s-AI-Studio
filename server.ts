@@ -5,10 +5,12 @@ import express from 'express';
 import path from 'path';
 import dotenv from 'dotenv';
 import { aiRouter } from './server/ai';
+import { assistantRouter } from './server/aiAssistant';
 import { labelRouter } from './server/aiLabel';
 import { translateRouter } from './server/aiTranslate';
 import { posRouter } from './server/pos';
 import { firebaseCfg, requireUser } from './server/auth';
+import { isAiConfigured } from './server/gemini';
 import { securityHeaders } from './server/security';
 
 dotenv.config();
@@ -26,7 +28,7 @@ async function start() {
   app.set('trust proxy', Number(process.env.TRUST_PROXY ?? 1));
   app.use(securityHeaders(production, firebaseCfg().authDomain));
 
-  app.get('/api/health', (_req, res) => res.json({ status: 'ok', ai: !!process.env.GEMINI_API_KEY }));
+  app.get('/api/health', (_req, res) => res.json({ status: 'ok', ai: isAiConfigured() }));
   // Authentification et quotas IA avant toute lecture du corps de la requête.
   app.use('/api/ai', requireUser);
   const smallJson = express.json({ limit: '1mb' });
@@ -35,6 +37,7 @@ async function start() {
   app.use('/api/pos', requireUser, posRouter);
   app.use('/api/ai/label', labelRouter);
   app.use('/api/ai/translate', translateRouter);
+  app.use('/api/ai/assistant', assistantRouter);
   app.use('/api/ai', aiRouter);
 
   if (process.env.NODE_ENV !== 'production') {

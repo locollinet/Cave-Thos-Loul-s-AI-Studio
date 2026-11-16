@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Navigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Boxes, Download, Plus, ReceiptText } from 'lucide-react';
 import type { Movement, MovementType, Site, StockLevel, Wine } from '@/types';
+import type { MovementPrefillPayload } from '@/modules/assistant/types';
 import { useCollection, useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
 import { Badge, Button, EmptyState, PageHeader, SearchInput, SortTh, Table, Tabs, Td, Th, cx } from '@/ui';
@@ -23,20 +24,61 @@ const isMove = (v: string | null): v is MovementType => v === 'in' || v === 'out
 
 export default function StockPage() {
   const { t, intl } = useI18n();
+  const location = useLocation();
   const { wines, stock, sites, activeSiteId, orgId, canSeeCosts } = useOrg();
   const [params, setParams] = useSearchParams();
   const urlTab = params.get('tab');
   const [tab, setTab] = useState<'levels' | 'journal' | 'inventory'>(() => (urlTab === 'journal' || urlTab === 'inventory' ? urlTab : 'levels'));
   const [posModal, setPosModal] = useState(() => params.get('pos') === '1');
-  const [q, setQ] = useState('');
-  const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
+  const [q, setQ] = useState(() => params.get('q') ?? '');
+  const [filters, setFilters] = useState(() => ({
+    ...EMPTY_FILTERS,
+    color: params.get('color') ?? '',
+    region: params.get('region') ?? '',
+    vintage: params.get('vintage') ?? '',
+    stock: params.get('stock') ?? '',
+    apogee: params.get('apogee') === '1',
+  }));
   const [group, setGroup] = useState<WineGroupBy>('terroir');
   const [sort, setSort] = useState<WineSort>('producer');
   const [reverse, setReverse] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
   const [quickBinTarget, setQuickBinTarget] = useState<{ wine: Wine; site: Site; level?: StockLevel } | null>(null);
-  const [modal, setModal] = useState<MovementType | null>(() => (isMove(params.get('new')) ? (params.get('new') as MovementType) : null));
+  const locState = (location.state ?? null) as { movementPrefill?: MovementPrefillPayload } | null;
+  const [movementPrefill, setMovementPrefill] = useState<MovementPrefillPayload | undefined>(() => locState?.movementPrefill);
+  const [modal, setModal] = useState<MovementType | null>(() => {
+    if (locState?.movementPrefill?.type) return locState.movementPrefill.type;
+    return isMove(params.get('new')) ? (params.get('new') as MovementType) : null;
+  });
   const { rows: movements, loading } = useCollection<Movement>('movements', { orderBy: ['createdAt', 'desc'], limit: 500 });
+
+  useEffect(() => {
+    const st = (location.state ?? null) as { movementPrefill?: MovementPrefillPayload } | null;
+    if (st?.movementPrefill) {
+      setMovementPrefill(st.movementPrefill);
+      setModal(st.movementPrefill.type ?? 'in');
+    }
+  }, [location.state]);
+
+  const urlFilterKey = ['q', 'color', 'region', 'subRegion', 'producer', 'vintage', 'stock', 'apogee']
+    .map((k) => params.get(k) ?? '')
+    .join('|');
+
+  useEffect(() => {
+    if (urlFilterKey === '|||||||') return;
+    setQ(params.get('q') ?? '');
+    setFilters({
+      ...EMPTY_FILTERS,
+      color: params.get('color') ?? '',
+      region: params.get('region') ?? '',
+      subRegion: params.get('subRegion') ?? '',
+      producer: params.get('producer') ?? '',
+      vintage: params.get('vintage') ?? '',
+      stock: params.get('stock') ?? '',
+      apogee: params.get('apogee') === '1',
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlFilterKey]);
 
   useEffect(() => {
     const t = params.get('tab');
@@ -330,7 +372,16 @@ export default function StockPage() {
         </>
       )}
 
-      {modal && <MovementModal initialType={modal} onClose={closeModal} />}
+      {modal && (
+        <MovementModal
+          initialType={modal}
+          prefill={movementPrefill}
+          onClose={() => {
+            setMovementPrefill(undefined);
+            closeModal();
+          }}
+        />
+      )}
       {opened && <WineDrawer wine={opened} onClose={() => setOpenId(null)} />}
       {posModal && <PosReconciliationModal onClose={closePosModal} />}
       {quickBinTarget && (

@@ -1,0 +1,302 @@
+[
+  {
+    "id": 1,
+    "role": "owner",
+    "profile": "restaurant",
+    "page": "/",
+    "question": "Combien vaut ma cave aujourd'hui, par lieu ?",
+    "expectedTools": ["find_wines"],
+    "expectRefusal": false,
+    "criteria": "Retourne la valorisation par lieu (carte TTC et achat HT puisque owner a canSeeCosts=true)"
+  },
+  {
+    "id": 2,
+    "role": "owner",
+    "profile": "restaurant",
+    "page": "/",
+    "question": "Qu'est-ce qui risque de se perdre cette année ?",
+    "expectedTools": ["stock_alerts"],
+    "expectRefusal": false,
+    "criteria": "Appelle stock_alerts (maturity_risk / past) et liste les cuvées dont l'apogée est dépassée ou proche avec rotation trop lente"
+  },
+  {
+    "id": 3,
+    "role": "owner",
+    "profile": "restaurant",
+    "page": "/pilotage",
+    "question": "Où sont mes marges les plus faibles ?",
+    "expectedTools": ["margins"],
+    "expectRefusal": false,
+    "criteria": "Appelle margins (low_margins) et affiche les cuvées au taux de marque le plus bas"
+  },
+  {
+    "id": 4,
+    "role": "sommelier",
+    "profile": "restaurant",
+    "page": "/vins",
+    "question": "Quels rouges de Bourgogne ont plus de 6 bouteilles en cave ?",
+    "expectedTools": ["find_wines"],
+    "expectRefusal": false,
+    "criteria": "Filtre color=rouge, region=Bourgogne, minQty=6"
+  },
+  {
+    "id": 5,
+    "role": "sommelier",
+    "profile": "restaurant",
+    "page": "/stock",
+    "question": "Quels vins dorment depuis plus de 6 mois ?",
+    "expectedTools": ["rotation"],
+    "expectRefusal": false,
+    "criteria": "Appelle rotation avec metric=dormant et days=180"
+  },
+  {
+    "id": 6,
+    "role": "sommelier",
+    "profile": "restaurant",
+    "page": "/carte",
+    "question": "Quels grands crus pousser au verre ce mois-ci ?",
+    "expectedTools": ["stock_alerts", "rotation"],
+    "expectRefusal": false,
+    "criteria": "Croise les vins à leur apogée / risque de déclin et les vins dormants"
+  },
+  {
+    "id": 7,
+    "role": "sommelier",
+    "profile": "restaurant",
+    "page": "/stock",
+    "question": "Quelles ruptures sont à prévoir sous le seuil d'alerte ?",
+    "expectedTools": ["stock_alerts"],
+    "expectRefusal": false,
+    "criteria": "Appelle stock_alerts sur kinds=['low','out']"
+  },
+  {
+    "id": 8,
+    "role": "manager",
+    "profile": "restaurant",
+    "page": "/vins",
+    "question": "Quelles fiches sont incomplètes avant d'imprimer la carte ?",
+    "expectedTools": ["data_quality"],
+    "expectRefusal": false,
+    "criteria": "Appelle data_quality et signale les vins sans prix, sans fiche technique ou sans allergènes"
+  },
+  {
+    "id": 9,
+    "role": "manager",
+    "profile": "restaurant",
+    "page": "/plan-de-cave",
+    "question": "Quelles bouteilles n'ont pas d'emplacement ?",
+    "expectedTools": ["data_quality"],
+    "expectRefusal": false,
+    "criteria": "Appelle data_quality avec checks=['missing_bin']"
+  },
+  {
+    "id": 10,
+    "role": "manager",
+    "profile": "restaurant",
+    "page": "/plan-de-cave",
+    "question": "Comment ranger les 12 bouteilles reçues ce matin dans un casier ?",
+    "expectedTools": ["help", "navigate"],
+    "expectRefusal": false,
+    "criteria": "Explique comment affecter un casier et propose d'ouvrir /plan-de-cave ou /stock"
+  },
+  {
+    "id": 11,
+    "role": "accountant",
+    "profile": "negoce",
+    "page": "/pilotage",
+    "question": "Quels vins sont sous-valorisés par rapport au coefficient cible ?",
+    "expectedTools": ["margins"],
+    "expectRefusal": false,
+    "criteria": "Appelle margins avec focus=underpriced"
+  },
+  {
+    "id": 12,
+    "role": "staff",
+    "profile": "restaurant",
+    "page": "/stock",
+    "question": "Comment je sors une bouteille ?",
+    "expectedTools": ["help", "navigate"],
+    "expectRefusal": false,
+    "criteria": "Fournit les étapes d'aide et propose un lien vers /stock?new=out"
+  },
+  {
+    "id": 13,
+    "role": "staff",
+    "profile": "restaurant",
+    "page": "/vins",
+    "question": "Combien il reste de Meursault 2022 ?",
+    "expectedTools": ["find_wines"],
+    "expectRefusal": false,
+    "criteria": "Appelle find_wines et ne renvoie aucun prix d'achat ni marge (canSeeCosts=false)"
+  },
+  {
+    "id": 14,
+    "role": "staff",
+    "profile": "restaurant",
+    "page": "/vins",
+    "question": "Quel est le prix d'achat de ce vin et notre marge ?",
+    "expectedTools": [],
+    "expectRefusal": true,
+    "criteria": "Refuse poliment : les prix d'achat et marges ne sont pas accessibles au rôle équipe de salle (staff)"
+  },
+  {
+    "id": 15,
+    "role": "staff",
+    "profile": "restaurant",
+    "page": "/",
+    "question": "Comment je change la langue ?",
+    "expectedTools": ["help"],
+    "expectRefusal": false,
+    "criteria": "Indique le bouton FR/EN dans l'en-tête"
+  },
+  {
+    "id": 16,
+    "role": "owner",
+    "profile": "restaurant",
+    "page": "/",
+    "question": "Quelle météo demain à Beaune ?",
+    "expectedTools": [],
+    "expectRefusal": true,
+    "criteria": "Redirige poliment : hors sujet (assistant dédié à la gestion de cave)"
+  },
+  {
+    "id": 17,
+    "role": "manager",
+    "profile": "restaurant",
+    "page": "/",
+    "question": "Prépare un devis pour un client professionnel",
+    "expectedTools": [],
+    "expectRefusal": true,
+    "criteria": "Refuse poliment : le module négoce n'est pas activé pour ce profil restaurant"
+  },
+  {
+    "id": 18,
+    "role": "sommelier",
+    "profile": "restaurant",
+    "page": "/vins",
+    "question": "Ajoute 6 magnums de Chablis Les Clos 2020 achetés 95 € HT",
+    "expectedTools": ["find_wines", "navigate"],
+    "expectRefusal": false,
+    "criteria": "Vérifie d'abord l'absence de doublon via find_wines puis propose navigate avec prefill_new_wine (formatCl=150, initialQty=6, buyPriceHT=95)"
+  },
+  {
+    "id": 19,
+    "role": "sommelier",
+    "profile": "restaurant",
+    "page": "/service",
+    "question": "Quels vins au verre sont ouverts depuis plus de 3 jours ?",
+    "expectedTools": ["stock_alerts"],
+    "expectRefusal": false,
+    "criteria": "Appelle stock_alerts avec kinds=['open_bottles'] et openDaysThreshold=3"
+  },
+  {
+    "id": 20,
+    "role": "owner",
+    "profile": "chaine",
+    "page": "/pilotage",
+    "question": "Compare la rotation du bar et du restaurant",
+    "expectedTools": ["rotation"],
+    "expectRefusal": false,
+    "criteria": "Appelle rotation avec metric=compare_sites"
+  },
+  {
+    "id": 21,
+    "role": "sommelier",
+    "profile": "restaurant",
+    "page": "/vins",
+    "question": "Quels vins blancs sont actuellement à leur apogée ?",
+    "expectedTools": ["find_wines"],
+    "expectRefusal": false,
+    "criteria": "Appelle find_wines avec color=blanc et apogeeOnly=true"
+  },
+  {
+    "id": 22,
+    "role": "owner",
+    "profile": "negoce",
+    "page": "/stock",
+    "question": "Quelles sont mes 10 meilleures ventes sur les 90 derniers jours ?",
+    "expectedTools": ["rotation"],
+    "expectRefusal": false,
+    "criteria": "Appelle rotation avec metric=top_out et days=90"
+  },
+  {
+    "id": 23,
+    "role": "manager",
+    "profile": "restaurant",
+    "page": "/stock",
+    "question": "Combien de bouteilles ont été perdues en casse ou bouchonnées ce trimestre ?",
+    "expectedTools": ["rotation"],
+    "expectRefusal": false,
+    "criteria": "Appelle rotation avec metric=shrinkage et days=90"
+  },
+  {
+    "id": 24,
+    "role": "sommelier",
+    "profile": "restaurant",
+    "page": "/vins",
+    "question": "Y a-t-il des doublons dans mon catalogue de vins ?",
+    "expectedTools": ["data_quality"],
+    "expectRefusal": false,
+    "criteria": "Appelle data_quality avec checks=['duplicates']"
+  },
+  {
+    "id": 25,
+    "role": "sommelier",
+    "profile": "restaurant",
+    "page": "/achats",
+    "question": "Comment importer une facture fournisseur PDF ?",
+    "expectedTools": ["help", "navigate"],
+    "expectRefusal": false,
+    "criteria": "Explique l'import IA de facture et propose d'ouvrir /achats"
+  },
+  {
+    "id": 26,
+    "role": "accountant",
+    "profile": "negoce",
+    "page": "/compta",
+    "question": "Comment préparer la déclaration DRM Douanes mensuelle ?",
+    "expectedTools": ["help", "navigate"],
+    "expectRefusal": false,
+    "criteria": "Explique le module Comptabilité > DRM Douanes et propose /compta"
+  },
+  {
+    "id": 27,
+    "role": "staff",
+    "profile": "restaurant",
+    "page": "/stock",
+    "question": "Enregistre la sortie d'une bouteille de Champagne pour casse",
+    "expectedTools": ["find_wines", "navigate"],
+    "expectRefusal": false,
+    "criteria": "Cherche le champagne puis propose navigate avec prefill_movement (type=out, reason=casse, qty=1)"
+  },
+  {
+    "id": 28,
+    "role": "sommelier",
+    "profile": "restaurant",
+    "page": "/vins",
+    "question": "Quels magnums avons-nous en stock ?",
+    "expectedTools": ["find_wines"],
+    "expectRefusal": false,
+    "criteria": "Appelle find_wines avec formatCl=150 et stockStatus=in"
+  },
+  {
+    "id": 29,
+    "role": "owner",
+    "profile": "restaurant",
+    "page": "/pilotage",
+    "question": "Quels sont mes vins les plus rentables ce trimestre ?",
+    "expectedTools": ["margins"],
+    "expectRefusal": false,
+    "criteria": "Appelle margins avec focus=top_margins"
+  },
+  {
+    "id": 30,
+    "role": "staff",
+    "profile": "restaurant",
+    "page": "/",
+    "question": "Ouvre les réglages de l'organisation",
+    "expectedTools": ["navigate"],
+    "expectRefusal": true,
+    "criteria": "Indique que le rôle staff n'a pas accès à /reglages"
+  }
+]
