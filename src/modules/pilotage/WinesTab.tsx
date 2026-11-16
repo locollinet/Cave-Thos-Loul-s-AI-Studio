@@ -86,9 +86,46 @@ export default function WinesTab({ view }: { view: PilotageView }) {
         )}
       </section>
 
-      <section>
-        <h2 className="font-display text-lg font-semibold">{t('pilotage.dormant')}</h2>
-        <p className="mb-2 text-xs text-muted">{t('pilotage.dormantHint')}</p>
+      <section className="space-y-3">
+        <div>
+          <h2 className="font-display text-lg font-semibold">Trésorerie immobilisée &amp; {t('pilotage.dormant')}</h2>
+          <p className="text-xs text-muted">
+            {t('pilotage.dormantHint')} Distinction automatique entre les flacons prêts à vendre qui dorment et la réserve de garde voulue (apogée future).
+          </p>
+        </div>
+
+        {view.dormant.length > 0 && (() => {
+          const idle = view.dormant.filter((r) => !r.isAgingReserve);
+          const reserve = view.dormant.filter((r) => r.isAgingReserve);
+          const idleCost = idle.reduce((s, r) => s + r.costValue, 0);
+          const idleBtl = idle.reduce((s, r) => s + r.stock, 0);
+          const reserveCost = reserve.reduce((s, r) => s + r.costValue, 0);
+          const reserveBtl = reserve.reduce((s, r) => s + r.stock, 0);
+
+          return (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 p-3.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">
+                  Trésorerie dormante (prêts à servir)
+                </div>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="font-display text-2xl font-semibold text-ink tabular">{f(idleCost)}</span>
+                  <span className="text-xs text-muted">HT · {idleBtl} btl ({idle.length} réf.)</span>
+                </div>
+              </div>
+              <div className="rounded-xl border border-border bg-surface-2/40 p-3.5">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted">
+                  Réserve de garde voulue (apogée future)
+                </div>
+                <div className="mt-1 flex items-baseline gap-2">
+                  <span className="font-display text-2xl font-semibold text-ink tabular">{f(reserveCost)}</span>
+                  <span className="text-xs text-muted">HT · {reserveBtl} btl ({reserve.length} réf.)</span>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
         {view.dormant.length === 0 ? (
           <p className="text-sm text-muted">{t('pilotage.noDormant')}</p>
         ) : (
@@ -96,20 +133,36 @@ export default function WinesTab({ view }: { view: PilotageView }) {
             <thead>
               <tr>
                 <Th>{t('pilotage.wine')}</Th>
+                <Th>Statut &amp; Détention</Th>
                 <Th right>{t('pilotage.stock')}</Th>
                 <Th right>{t('pilotage.kpi.stockCost')}</Th>
                 <Th>{t('pilotage.lastOut')}</Th>
               </tr>
             </thead>
             <tbody>
-              {view.dormant.map((r) => (
-                <tr key={r.wineId}>
-                  <Td className="max-w-72 truncate">{r.label}</Td>
-                  <Td right>{r.stock}</Td>
-                  <Td right>{f(r.costValue)}</Td>
-                  <Td>{r.lastOut ? `${dateFr(r.lastOut, intl)} (${t('pilotage.daysAgo', { n: r.daysSince ?? 0 })})` : t('pilotage.never')}</Td>
-                </tr>
-              ))}
+              {view.dormant.map((r) => {
+                const monthsHeld = r.holdingDays != null ? Math.max(1, Math.round(r.holdingDays / 30)) : null;
+                return (
+                  <tr key={r.wineId}>
+                    <Td className="max-w-72 truncate font-medium">{r.label}</Td>
+                    <Td>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {r.isAgingReserve ? (
+                          <Badge tone="neutral">Garde voulue · apogée {r.apogeeFrom}</Badge>
+                        ) : (
+                          <Badge tone="warn">Trésorerie dormante</Badge>
+                        )}
+                        {monthsHeld !== null && (
+                          <span className="text-[11px] text-muted">En cave {monthsHeld} mois</span>
+                        )}
+                      </div>
+                    </Td>
+                    <Td right>{r.stock}</Td>
+                    <Td right className="font-mono font-medium">{f(r.costValue)}</Td>
+                    <Td>{r.lastOut ? `${dateFr(r.lastOut, intl)} (${t('pilotage.daysAgo', { n: r.daysSince ?? 0 })})` : t('pilotage.never')}</Td>
+                  </tr>
+                );
+              })}
             </tbody>
           </Table>
         )}

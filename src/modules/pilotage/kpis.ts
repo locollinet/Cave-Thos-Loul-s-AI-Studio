@@ -135,6 +135,7 @@ export function abcAnalysis(perfs: WinePerf[]): AbcRow[] {
 
 export function dormantWines(i: { wines: Wine[]; stock: StockLevel[]; movements: Movement[]; siteId: string; asOf: string; days?: number }): DormantRow[] {
   const days = i.days ?? 90;
+  const currentYear = Number(i.asOf.slice(0, 4)) || new Date().getFullYear();
   const q = stockByWine(i.stock, i.siteId);
   const lastOut = new Map<string, string>();
   const firstIn = new Map<string, string>();
@@ -149,11 +150,24 @@ export function dormantWines(i: { wines: Wine[]; stock: StockLevel[]; movements:
     if (stockQty <= 0 || w.isArchived) continue;
     const last = lastOut.get(w.id) ?? null;
     const since = last ? daysBetween(last, i.asOf) : null;
-    const entry = firstIn.get(w.id);
-    if (since !== null ? since < days : entry !== undefined && daysBetween(entry, i.asOf) < days) continue;
-    rows.push({ wineId: w.id, label: wineLabel(w), stock: stockQty, costValue: round2(stockQty * (w.buyPriceHT ?? 0)), lastOut: last, daysSince: since });
+    const entry = firstIn.get(w.id) ?? null;
+    if (since !== null ? since < days : entry !== null && daysBetween(entry, i.asOf) < days) continue;
+    const holdingDays = entry ? daysBetween(entry, i.asOf) : null;
+    const isAgingReserve = Boolean(w.apogeeFrom && w.apogeeFrom > currentYear);
+    rows.push({
+      wineId: w.id,
+      label: wineLabel(w),
+      stock: stockQty,
+      costValue: round2(stockQty * (w.buyPriceHT ?? 0)),
+      lastOut: last,
+      daysSince: since,
+      firstIn: entry,
+      holdingDays,
+      isAgingReserve,
+      apogeeFrom: w.apogeeFrom,
+    });
   }
-  return rows.sort((a, b) => b.costValue - a.costValue);
+  return rows.sort((a, b) => Number(!!a.isAgingReserve) - Number(!!b.isAgingReserve) || b.costValue - a.costValue);
 }
 
 export function marginBy(sales: SaleLine[], wines: Wine[], key: (w: Wine | undefined) => string): BreakdownRow[] {

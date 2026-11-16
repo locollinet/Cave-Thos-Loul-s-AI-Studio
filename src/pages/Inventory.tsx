@@ -12,7 +12,7 @@ import { findWineByBarcode } from '@/lib/barcode';
 import { Scanner } from '@/components/Scanner';
 import { COLOR_DOT } from './Wines';
 
-export default function InventoryPage() {
+export default function InventoryPage({ embedded = false }: { embedded?: boolean }) {
   const { t, intl } = useI18n();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -44,7 +44,16 @@ export default function InventoryPage() {
 
   return (
     <div>
-      <PageHeader title={t('nav.inventory')} subtitle={t('inv.subtitle')} actions={<Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setStarting(true)}>{t('inv.start')}</Button>} />
+      {!embedded ? (
+        <PageHeader title={t('nav.inventory')} subtitle={t('inv.subtitle')} actions={<Button variant="primary" icon={<Plus className="size-4" />} onClick={() => setStarting(true)}>{t('inv.start')}</Button>} />
+      ) : (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-muted">{t('inv.subtitle')}</p>
+          <Button variant="primary" size="sm" icon={<Plus className="size-4" />} onClick={() => setStarting(true)}>
+            {t('inv.start')}
+          </Button>
+        </div>
+      )}
       {sessions.length === 0 ? (
         <EmptyState icon={<ClipboardCheck className="size-8" />} title={t('inv.empty')} hint={t('inv.emptyHint')} />
       ) : (

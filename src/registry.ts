@@ -3,7 +3,6 @@ import {
   BookOpen,
   Boxes,
   Calculator,
-  ClipboardCheck,
   FileText,
   GlassWater,
   Layers,
@@ -41,9 +40,8 @@ export const NAV: NavItem[] = [
   { id: 'carte', path: '/carte', labelKey: 'nav.carte', hintKey: 'nav.hint.carte', group: 'service', icon: BookOpen, module: 'carte', roles: ['owner', 'manager', 'sommelier'], keywords: 'carte des vins menu qr sommelier ia client' },
 
   { id: 'wines', path: '/vins', labelKey: 'nav.wines', hintKey: 'nav.hint.wines', group: 'cellar', icon: WineIcon, module: 'stock', keywords: 'référentiel catalogue produits cuvées fiches techniques allocations' },
-  { id: 'cellarPlan', path: '/stock?tab=cellar', labelKey: 'nav.cellarPlan', hintKey: 'nav.hint.cellarPlan', group: 'cellar', icon: Layers, module: 'stock', keywords: 'plan de cave casiers alvéoles étagères quinconce rangement goulots' },
-  { id: 'stock', path: '/stock', labelKey: 'nav.stock', hintKey: 'nav.hint.stock', group: 'cellar', icon: Boxes, module: 'stock', keywords: 'mouvements entrées sorties transferts casse journal ticket z' },
-  { id: 'inventory', path: '/inventaire', labelKey: 'nav.inventory', hintKey: 'nav.hint.inventory', group: 'cellar', icon: ClipboardCheck, module: 'stock', keywords: 'comptage mobile scan écarts' },
+  { id: 'cellarPlan', path: '/plan-de-cave', labelKey: 'nav.cellarPlan', hintKey: 'nav.hint.cellarPlan', group: 'cellar', icon: Layers, module: 'stock', keywords: 'plan de cave casiers alvéoles étagères quinconce rangement goulots' },
+  { id: 'stock', path: '/stock', labelKey: 'nav.stock', hintKey: 'nav.hint.stock', group: 'cellar', icon: Boxes, module: 'stock', keywords: 'mouvements entrées sorties transferts casse journal ticket z inventaire comptage' },
 
   { id: 'achats', path: '/achats', labelKey: 'nav.achats', hintKey: 'nav.hint.achats', group: 'commerce', icon: Truck, module: 'achats', roles: ['owner', 'manager', 'sommelier', 'accountant'], keywords: 'factures fournisseurs réception import ia pdf ocr' },
   { id: 'negoce', path: '/negoce', labelKey: 'nav.negoce', hintKey: 'nav.hint.negoce', group: 'commerce', icon: ShoppingCart, module: 'negoce', roles: ['owner', 'manager', 'accountant'], keywords: 'devis factures clients dépôt-vente offres' },

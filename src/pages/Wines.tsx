@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Archive, BookOpen, Download, FileUp, ListChecks, Map as MapIcon, Percent, Plus, Send, Sparkles, Tag, Wine as WineIcon, X } from 'lucide-react';
+import { Archive, BookOpen, ChevronDown, Download, FileUp, ListChecks, Map as MapIcon, Percent, Plus, Send, Sparkles, Tag, Wine as WineIcon, X } from 'lucide-react';
 import type { Wine, WineColor } from '@/types';
 import { useCollection, useOrg } from '@/app/org';
 import { useI18n } from '@/i18n';
@@ -66,6 +66,7 @@ export default function WinesPage() {
   const [selecting, setSelecting] = useState(false);
   const [bulk, setBulk] = useState<'carte' | 'price' | 'techSheet' | null>(null);
   const [shelfOpen, setShelfOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
 
   useEffect(() => {
     if (params.get('new') === '1' && can('manager')) setCreating(true);
@@ -232,34 +233,56 @@ export default function WinesPage() {
         title={t('nav.wines')}
         subtitle={t('wines.subtitle', { n: wines.filter((w) => !w.isArchived).length })}
         actions={
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              size="sm"
-              variant="secondary"
-              icon={<Tag className="size-4 text-brand" />}
-              onClick={() => setShelfOpen(true)}
-              title="Générer des étiquettes de rayon & stop-rayons à imprimer"
-            >
-              <span className="hidden sm:inline">Stop-rayons</span>
-            </Button>
+          <div className="relative flex flex-wrap items-center gap-2">
+            <div className="relative">
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => setToolsOpen((v) => !v)}
+              >
+                <span>Outils</span>
+                <ChevronDown className="ml-1 size-3.5" />
+              </Button>
+              {toolsOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setToolsOpen(false)} />
+                  <div className="absolute right-0 z-40 mt-1.5 w-56 rounded-xl border border-border bg-surface p-1.5 shadow-xl">
+                    <button
+                      type="button"
+                      onClick={() => { setToolsOpen(false); setShelfOpen(true); }}
+                      className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-medium text-ink hover:bg-surface-2 cursor-pointer"
+                    >
+                      <Tag className="size-4 text-brand" />
+                      <span>Étiquettes &amp; Stop-rayons</span>
+                    </button>
+                    {can('manager') && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => { setToolsOpen(false); setBulk('techSheet'); }}
+                          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-medium text-ink hover:bg-surface-2 cursor-pointer"
+                        >
+                          <Sparkles className="size-4 text-accent" />
+                          <span>Fiches techniques IA par lot</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => { setToolsOpen(false); setImporting(true); }}
+                          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-xs font-medium text-ink hover:bg-surface-2 cursor-pointer"
+                        >
+                          <FileUp className="size-4 text-muted" />
+                          <span>{t('common.import')} (CSV / Excel)</span>
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
             {can('manager') && (
-              <>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  icon={<Sparkles className="size-4 text-accent" />}
-                  onClick={() => setBulk('techSheet')}
-                  title="Enrichir les fiches techniques par lot avec l'IA"
-                >
-                  <span className="hidden sm:inline">Fiches IA par lot</span>
-                </Button>
-                <Button size="sm" icon={<FileUp className="size-4" />} onClick={() => setImporting(true)}>
-                  <span className="hidden sm:inline">{t('common.import')}</span>
-                </Button>
-                <Button size="sm" variant="primary" icon={<Plus className="size-4" />} onClick={() => setCreating(true)}>
-                  {t('wines.new')}
-                </Button>
-              </>
+              <Button size="sm" variant="primary" icon={<Plus className="size-4" />} onClick={() => setCreating(true)}>
+                {t('wines.new')}
+              </Button>
             )}
           </div>
         }
@@ -270,7 +293,9 @@ export default function WinesPage() {
         tabs={[
           { value: 'catalog', label: t('wines.catalog') },
           ...(can('sommelier') ? [{ value: 'allocations' as const, label: 'Allocations vignerons' }] : []),
-          { value: 'duplicates', label: t('wines.duplicates'), count: duplicateGroups.length },
+          ...(duplicateGroups.length > 0 || tab === 'duplicates'
+            ? [{ value: 'duplicates' as const, label: t('wines.duplicates'), count: duplicateGroups.length }]
+            : []),
           { value: 'archived', label: t('wines.archived') },
         ]}
       />

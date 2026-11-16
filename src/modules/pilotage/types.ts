@@ -62,6 +62,10 @@ export interface DormantRow {
   costValue: number;
   lastOut: string | null;
   daysSince: number | null;
+  firstIn?: string | null;
+  holdingDays?: number | null;
+  isAgingReserve?: boolean;
+  apogeeFrom?: number;
 }
 
 export interface BreakdownRow {

@@ -11,8 +11,8 @@ import type { ReactNode } from 'react';
 
 const Dashboard = lazy(() => import('@/pages/Dashboard'));
 const Wines = lazy(() => import('@/pages/Wines'));
+const CellarPlanPage = lazy(() => import('@/pages/CellarPlanPage'));
 const Stock = lazy(() => import('@/pages/Stock'));
-const Inventory = lazy(() => import('@/pages/Inventory'));
 const Contacts = lazy(() => import('@/pages/Contacts'));
 const Settings = lazy(() => import('@/pages/Settings'));
 const PlatformAdmin = lazy(() => import('@/pages/PlatformAdmin'));
@@ -99,8 +99,9 @@ function AppRoutes() {
           <Route element={<Layout />}>
             <Route index element={<Dashboard />} />
             <Route path="vins" element={<Guard id="wines"><Wines /></Guard>} />
+            <Route path="plan-de-cave" element={<Guard id="stock"><CellarPlanPage /></Guard>} />
             <Route path="stock" element={<Guard id="stock"><Stock /></Guard>} />
-            <Route path="inventaire" element={<Guard id="inventory"><Inventory /></Guard>} />
+            <Route path="inventaire" element={<Navigate to="/stock?tab=inventory" replace />} />
             <Route path="contacts" element={<Guard id="contacts"><Contacts /></Guard>} />
             <Route path="carte/*" element={<Guard id="carte"><Carte /></Guard>} />
             <Route path="service/*" element={<Guard id="service"><Service /></Guard>} />

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { Boxes, Download, Plus, ReceiptText } from 'lucide-react';
 import type { Movement, MovementType, Site, StockLevel, Wine } from '@/types';
 import { useCollection, useOrg } from '@/app/org';
@@ -15,7 +15,7 @@ import { WineFilters } from '@/components/WineFilters';
 import { WineGroups } from '@/components/WineGroups';
 import { EMPTY_FILTERS, matchesWine, sortWines, type WineGroupBy, type WineSort } from '@/lib/wineFilters';
 import { PosReconciliationModal } from '@/components/pos/PosReconciliationModal';
-import { CellarPlan } from './stock/CellarPlan';
+import InventoryPage from './Inventory';
 import { QuickBinModal } from './stock/QuickBinPopover';
 
 const MOVE_TONE: Record<MovementType, 'ok' | 'neutral' | 'info' | 'warn'> = { in: 'ok', out: 'neutral', transfer: 'info', adjust: 'warn' };
@@ -26,7 +26,7 @@ export default function StockPage() {
   const { wines, stock, sites, activeSiteId, orgId, canSeeCosts } = useOrg();
   const [params, setParams] = useSearchParams();
   const urlTab = params.get('tab');
-  const [tab, setTab] = useState<'levels' | 'cellar' | 'journal'>(() => (urlTab === 'cellar' || urlTab === 'journal' ? urlTab : 'levels'));
+  const [tab, setTab] = useState<'levels' | 'journal' | 'inventory'>(() => (urlTab === 'journal' || urlTab === 'inventory' ? urlTab : 'levels'));
   const [posModal, setPosModal] = useState(() => params.get('pos') === '1');
   const [q, setQ] = useState('');
   const [filters, setFilters] = useState({ ...EMPTY_FILTERS });
@@ -40,7 +40,7 @@ export default function StockPage() {
 
   useEffect(() => {
     const t = params.get('tab');
-    setTab(t === 'cellar' || t === 'journal' ? t : 'levels');
+    setTab(t === 'journal' || t === 'inventory' ? t : 'levels');
   }, [params]);
 
   useEffect(() => {
@@ -49,7 +49,7 @@ export default function StockPage() {
     if (params.get('pos') === '1') setPosModal(true);
   }, [params]);
 
-  const switchTab = (nextTab: 'levels' | 'cellar' | 'journal') => {
+  const switchTab = (nextTab: 'levels' | 'journal' | 'inventory') => {
     setTab(nextTab);
     setParams(
       (prev) => {
@@ -218,15 +218,15 @@ export default function StockPage() {
     );
   };
 
+  if (urlTab === 'cellar') {
+    return <Navigate to={params.get('apogee') === '1' ? '/plan-de-cave?apogee=1' : '/plan-de-cave'} replace />;
+  }
+
   return (
     <div>
       <PageHeader
-        title={tab === 'cellar' ? t('nav.cellarPlan') : t('nav.stock')}
-        subtitle={
-          tab === 'cellar'
-            ? 'Cave en coupe interactive, goulots étiquetés par millésime, permutation Devant/Derrière et rangement.'
-            : t('stock.subtitle')
-        }
+        title={t('nav.stock')}
+        subtitle={t('stock.subtitle')}
         actions={
           <div className="hidden flex-wrap gap-2 md:flex">
             <Button size="sm" variant="primary" icon={<Plus className="size-4" />} onClick={() => setModal('in')}>
@@ -246,13 +246,13 @@ export default function StockPage() {
         onChange={switchTab}
         tabs={[
           { value: 'levels', label: t('stock.levels') },
-          { value: 'cellar', label: t('stock.cellarPlan') },
           { value: 'journal', label: t('stock.journal'), count: journal.length },
+          { value: 'inventory', label: t('nav.inventory') },
         ]}
       />
 
-      {tab === 'cellar' ? (
-        <CellarPlan onOpenWine={(id) => setOpenId(id)} />
+      {tab === 'inventory' ? (
+        <InventoryPage embedded />
       ) : tab === 'levels' ? (
         <>
           <WineFilters

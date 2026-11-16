@@ -40,7 +40,7 @@ export default function ChainDashboard() {
 
   const actions = (
     <>
-      <Link to="/stock?tab=cellar">
+      <Link to="/plan-de-cave">
         <Button size="sm" icon={<Layers className="size-4" />}>
           {t('nav.cellarPlan')}
         </Button>
@@ -50,7 +50,7 @@ export default function ChainDashboard() {
           {t('stock.type.transfer')}
         </Button>
       </Link>
-      <Link to="/inventaire">
+      <Link to="/stock?tab=inventory">
         <Button size="sm" icon={<ClipboardCheck className="size-4" />}>
           {t('nav.inventory')}
         </Button>

@@ -13,21 +13,27 @@ import { usePilotage } from './usePilotage';
 import WinesTab from './WinesTab';
 
 type Preset = 'month' | 'quarter' | 'year' | 'last12';
-type Tab = 'overview' | 'vintages' | 'wines' | 'breakdown' | 'sites' | 'replenish';
-const VALID_TABS = new Set<Tab>(['overview', 'vintages', 'wines', 'breakdown', 'sites', 'replenish']);
+type Tab = 'overview' | 'vintages' | 'wines' | 'breakdown' | 'replenish';
+const VALID_TABS = new Set<Tab>(['overview', 'vintages', 'wines', 'breakdown', 'replenish']);
+
+function normalizePilotageTab(raw: string | null): Tab | null {
+  if (!raw) return null;
+  if (raw === 'sites') return 'breakdown';
+  return VALID_TABS.has(raw as Tab) ? (raw as Tab) : null;
+}
 
 export default function PilotageModule() {
   const { t, intl } = useI18n();
   const { orgId, org, sites, wines, stock, activeSiteId, can } = useOrg();
   const [params, setParams] = useSearchParams();
-  const urlTab = params.get('tab') as Tab | null;
+  const urlTab = normalizePilotageTab(params.get('tab'));
   const [preset, setPreset] = useState<Preset>('last12');
-  const [tab, setTab] = useState<Tab>(() => (urlTab && VALID_TABS.has(urlTab) ? urlTab : 'overview'));
+  const [tab, setTab] = useState<Tab>(() => urlTab ?? 'overview');
   const [siteId, setSiteId] = useState(activeSiteId);
 
   useEffect(() => {
-    const tParam = params.get('tab') as Tab | null;
-    if (tParam && VALID_TABS.has(tParam)) setTab(tParam);
+    const tParam = normalizePilotageTab(params.get('tab'));
+    if (tParam) setTab(tParam);
   }, [params]);
 
   const switchTab = (next: Tab) => {
@@ -84,9 +90,8 @@ export default function PilotageModule() {
         tabs={[
           { value: 'overview', label: t('pilotage.tab.overview') },
           { value: 'vintages', label: 'Millésimes & Années' },
-          { value: 'wines', label: t('pilotage.tab.wines') },
-          { value: 'breakdown', label: t('pilotage.tab.breakdown') },
-          { value: 'sites', label: t('pilotage.tab.sites'), count: sites.length },
+          { value: 'wines', label: 'Palmarès & Stock dormant' },
+          { value: 'breakdown', label: sites.length > 1 ? 'Répartition & Multi-sites' : t('pilotage.tab.breakdown') },
           { value: 'replenish', label: t('pilotage.tab.replenish'), count: view.replenish.length },
         ]}
       />
@@ -122,8 +127,12 @@ export default function PilotageModule() {
             </div>
           )}
           {tab === 'wines' && <WinesTab view={view} />}
-          {tab === 'breakdown' && <BreakdownTab view={view} />}
-          {tab === 'sites' && <SitesTab view={view} />}
+          {tab === 'breakdown' && (
+            <div className="space-y-6">
+              {sites.length > 1 && <SitesTab view={view} />}
+              <BreakdownTab view={view} />
+            </div>
+          )}
           {tab === 'replenish' && <ReplenishTab view={view} />}
         </>
       )}

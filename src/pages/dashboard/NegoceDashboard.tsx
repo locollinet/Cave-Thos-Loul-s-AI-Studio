@@ -75,7 +75,7 @@ export default function NegoceDashboard() {
         </Link>
       )}
       {can('sommelier') && (
-        <Link to="/stock?tab=cellar">
+        <Link to="/plan-de-cave">
           <Button size="sm" icon={<WineIcon className="size-4" />}>
             {t('nav.cellarPlan')}
           </Button>

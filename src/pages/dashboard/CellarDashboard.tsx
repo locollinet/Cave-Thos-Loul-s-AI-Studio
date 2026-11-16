@@ -22,10 +22,10 @@ export function useServiceActions(): QuickAction[] {
   const { hasModule } = useOrg();
   const out: QuickAction[] = [];
   if (hasModule('carte')) out.push({ to: '/service', label: t('nav.service'), hint: t('home.quick.serviceHint'), icon: GlassWater, primary: true });
-  out.push({ to: '/stock?tab=cellar', label: t('nav.cellarPlan'), hint: 'Casiers en coupe & goulots 3D', icon: Layers });
+  out.push({ to: '/plan-de-cave', label: t('nav.cellarPlan'), hint: 'Casiers en coupe & goulots 3D', icon: Layers });
   out.push({ to: '/stock?new=in', label: t('stock.type.in'), hint: t('home.quick.inHint'), icon: ArrowDownToLine });
   out.push({ to: '/stock?new=out', label: t('stock.type.out'), hint: t('home.quick.outHint'), icon: ArrowUpFromLine });
-  out.push({ to: '/inventaire', label: t('nav.inventory'), hint: t('home.quick.inventoryHint'), icon: ClipboardCheck });
+  out.push({ to: '/stock?tab=inventory', label: t('nav.inventory'), hint: t('home.quick.inventoryHint'), icon: ClipboardCheck });
   return out;
 }
 
@@ -80,7 +80,7 @@ export function DrinkingWindowPanel({ wines, qty, className }: { wines: Paramete
       className={className}
       eyebrow={t('home.window.eyebrow')}
       title={t('home.window.title')}
-      action={<PanelLink to="/stock?tab=cellar&apogee=1">{t('nav.cellarPlan')}</PanelLink>}
+      action={<PanelLink to="/plan-de-cave?apogee=1">{t('nav.cellarPlan')}</PanelLink>}
     >
       {total === 0 ? (
         <Invite icon={CalendarClock} title={t('home.window.emptyTitle')} hint={t('home.window.emptyHint')} to="/vins" cta={t('home.window.emptyCta')} />
