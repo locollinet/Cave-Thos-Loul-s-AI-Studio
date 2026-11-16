@@ -88,9 +88,9 @@ export default function WinesTab({ view }: { view: PilotageView }) {
 
       <section className="space-y-3">
         <div>
-          <h2 className="font-display text-lg font-semibold">Trésorerie immobilisée &amp; {t('pilotage.dormant')}</h2>
+          <h2 className="font-display text-lg font-semibold">Vins arrivés depuis longtemps sans se vendre</h2>
           <p className="text-xs text-muted">
-            {t('pilotage.dormantHint')} Distinction automatique entre les flacons prêts à vendre qui dorment et la réserve de garde voulue (apogée future).
+            Flacons entrés en cave depuis plus de 3 mois sans aucune sortie récente (≥ 90 j). Les vins de garde volontaire (apogée future) sont séparés pour ne pas fausser l’alerte.
           </p>
         </div>
 
@@ -106,20 +106,20 @@ export default function WinesTab({ view }: { view: PilotageView }) {
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-xl border border-amber-500/35 bg-amber-500/10 p-3.5">
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-300">
-                  Trésorerie dormante (prêts à servir)
+                  À déstocker — Prêts à boire qui dorment
                 </div>
                 <div className="mt-1 flex items-baseline gap-2">
                   <span className="font-display text-2xl font-semibold text-ink tabular">{f(idleCost)}</span>
-                  <span className="text-xs text-muted">HT · {idleBtl} btl ({idle.length} réf.)</span>
+                  <span className="text-xs text-muted">HT immobilisés · {idleBtl} btl ({idle.length} réf.)</span>
                 </div>
               </div>
               <div className="rounded-xl border border-border bg-surface-2/40 p-3.5">
                 <div className="text-[11px] font-semibold uppercase tracking-wider text-muted">
-                  Réserve de garde voulue (apogée future)
+                  Garde voulue — Apogée pas encore atteinte
                 </div>
                 <div className="mt-1 flex items-baseline gap-2">
                   <span className="font-display text-2xl font-semibold text-ink tabular">{f(reserveCost)}</span>
-                  <span className="text-xs text-muted">HT · {reserveBtl} btl ({reserve.length} réf.)</span>
+                  <span className="text-xs text-muted">HT en vieillissement · {reserveBtl} btl ({reserve.length} réf.)</span>
                 </div>
               </div>
             </div>
@@ -133,10 +133,11 @@ export default function WinesTab({ view }: { view: PilotageView }) {
             <thead>
               <tr>
                 <Th>{t('pilotage.wine')}</Th>
-                <Th>Statut &amp; Détention</Th>
+                <Th>Arrivé en cave</Th>
+                <Th>Ventes / Sorties</Th>
+                <Th>Statut</Th>
                 <Th right>{t('pilotage.stock')}</Th>
-                <Th right>{t('pilotage.kpi.stockCost')}</Th>
-                <Th>{t('pilotage.lastOut')}</Th>
+                <Th right>Valeur immobilisée</Th>
               </tr>
             </thead>
             <tbody>
@@ -145,21 +146,30 @@ export default function WinesTab({ view }: { view: PilotageView }) {
                 return (
                   <tr key={r.wineId}>
                     <Td className="max-w-72 truncate font-medium">{r.label}</Td>
+                    <Td className="whitespace-nowrap text-xs text-muted">
+                      {r.firstIn ? `${dateFr(r.firstIn, intl)} · ` : ''}
+                      <span className="font-semibold text-ink">
+                        {monthsHeld !== null ? `il y a ${monthsHeld} mois` : '—'}
+                      </span>
+                    </Td>
+                    <Td className="whitespace-nowrap">
+                      {r.lastOut ? (
+                        <span className="text-xs text-muted">
+                          {dateFr(r.lastOut, intl)} ({t('pilotage.daysAgo', { n: r.daysSince ?? 0 })})
+                        </span>
+                      ) : (
+                        <Badge tone="bad">Jamais vendu</Badge>
+                      )}
+                    </Td>
                     <Td>
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        {r.isAgingReserve ? (
-                          <Badge tone="neutral">Garde voulue · apogée {r.apogeeFrom}</Badge>
-                        ) : (
-                          <Badge tone="warn">Trésorerie dormante</Badge>
-                        )}
-                        {monthsHeld !== null && (
-                          <span className="text-[11px] text-muted">En cave {monthsHeld} mois</span>
-                        )}
-                      </div>
+                      {r.isAgingReserve ? (
+                        <Badge tone="neutral">Garde voulue · {r.apogeeFrom}</Badge>
+                      ) : (
+                        <Badge tone="warn">À déstocker</Badge>
+                      )}
                     </Td>
                     <Td right>{r.stock}</Td>
                     <Td right className="font-mono font-medium">{f(r.costValue)}</Td>
-                    <Td>{r.lastOut ? `${dateFr(r.lastOut, intl)} (${t('pilotage.daysAgo', { n: r.daysSince ?? 0 })})` : t('pilotage.never')}</Td>
                   </tr>
                 );
               })}
